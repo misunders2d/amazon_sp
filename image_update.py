@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 args = sys.argv[1:]
+send_telegram_message(f"Starting cron job with argument {sys.argv[1]}")
 if len(args) == 0 or all(["1" not in args, "2" not in args]):
     raise BaseException("Command line arguments must be 1 or 2")
 
