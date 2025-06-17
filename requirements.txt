@@ -1,0 +1,3 @@
+python-amazon-sp-api
+python-dotenv
+requests
