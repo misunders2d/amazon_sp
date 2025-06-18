@@ -4,6 +4,8 @@ from sp_api.base import ReportType
 from sp_api.api import  Reports
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 
 REFRESH_TOKEN_EU=os.environ['REFRESH_TOKEN_EU']
@@ -34,8 +36,8 @@ report_status = report.get_report(reportId=report_id).payload
 
 #If report is still generating (status == IN_PROGRESS), wait 30 seconds and update the status
 while report_status['processingStatus'] in ('IN_PROGRESS','IN_QUEUE'):
-    print('Waiting for 30 seconds')
-    time.sleep(30)
+    print('Waiting for 10 seconds')
+    time.sleep(10)
     report_status = report.get_report(reportId=report_id).payload
     print(f'report status: {report_status['processingStatus']}')
     #if the report status is no longer "IN_PROGRESS", we can download the "report document"
