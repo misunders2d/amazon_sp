@@ -54,7 +54,7 @@ def update_image(sku, product_type, image_path):
             marketplaceIds=MARKETPLACE_IDS,
             body=patch_body
         )
-        send_telegram_message(f"Image updated for {sku} with status {response.payload['status']}")
+        send_telegram_message(f"Image updated for {sku} with status {response.payload['status']}\nImage: {image}\n\n")
     except Exception as e:
         send_telegram_message(f"FAILED to update image for {sku}:\n{e}")
 
