@@ -66,9 +66,9 @@ if __name__ == "__main__":
     for product in product_details:
         SKUS = product["skus"]
         image = product["STANDARD_IMAGE"]
-        if len(args) > 1 and args[1] == "1":
+        if len(args) > 0 and args[0] == "1":
             image = product["MORNING_IMAGE"]
-        elif len(args) > 1 and args[1] == "2":
+        elif len(args) > 0 and args[0] == "2":
             image = product["EVENING_IMAGE"]
         product_type = get_product_type(SKUS[0])
         for sku in SKUS:
