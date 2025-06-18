@@ -7,13 +7,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 args = sys.argv[1:]
-send_telegram_message(f"Starting cron job with argument {sys.argv[1]}")
-if len(args) == 0 or all(["1" not in args, "2" not in args]):
-    raise BaseException("Command line arguments must be 1 or 2")
+send_telegram_message(f"Starting cron job with argument {sys.argv[1:]}")
 
 MORNING_IMAGE="https://ik.imagekit.io/jgp5dmcfb/Day-night/4pc_Light%20Gray_Daytime.png"
 EVENING_IMAGE="https://ik.imagekit.io/jgp5dmcfb/Day-night/4pc_Light%20Gray_Night.jpeg"
-image = MORNING_IMAGE if "1" in args else EVENING_IMAGE
+STANDARD_IMAGE="https://ik.imagekit.io/jgp5dmcfb/New_Iconic_Sheets_Set/1._Iconic_Sheet_Set_4pc_Light_Gray_Stack_2.jpg"
+
+
+image = STANDARD_IMAGE
+if "1" in args:
+    image = MORNING_IMAGE
+elif "2" in args:
+    image = EVENING_IMAGE
+
 
 SKUS=["BedSheetSet-King-Light-Gray-FBA","M-BEDSHEETSET-K-LIGHT-GRAY-PAK","M-BEDSHEETSET-K-LIGHT-GRAY-CMB"]
 MARKETPLACE_IDS=["ATVPDKIKX0DER","A2EUQ1WTGCTBG2"]
