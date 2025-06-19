@@ -18,12 +18,6 @@ credentials = dict(
 
 listings_client = ListingsItems(credentials=credentials)
 
-
-MORNING_IMAGE="https://ik.imagekit.io/jgp5dmcfb/Day-night/morning.png"#"https://ik.imagekit.io/jgp5dmcfb/Day-night/4pc_Light%20Gray_Daytime.png"
-EVENING_IMAGE="https://ik.imagekit.io/jgp5dmcfb/Day-night/evening.png?updatedAt=1750239337952"#"https://ik.imagekit.io/jgp5dmcfb/Day-night/4pc_Light%20Gray_Night.jpeg"
-STANDARD_IMAGE="https://ik.imagekit.io/jgp5dmcfb/New_Iconic_Sheets_Set/1._Iconic_Sheet_Set_4pc_Light_Gray_Stack_2.jpg"
-
-
 def get_product_type(sku):
     response=listings_client.get_listings_item(
         sellerId=SELLER_ID,
