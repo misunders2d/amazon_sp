@@ -6,6 +6,7 @@ from telegram_notifier import send_telegram_message
 from image_links import product_details
 
 from dotenv import load_dotenv
+from typing import Literal, List
 load_dotenv()
 MARKETPLACE_IDS=["ATVPDKIKX0DER","A2EUQ1WTGCTBG2"]
 SELLER_ID=os.environ['SELLER_ID']
@@ -18,12 +19,17 @@ credentials = dict(
 
 listings_client = ListingsItems(credentials=credentials)
 
-def get_product_type(sku):
-    response=listings_client.get_listings_item(
+def get_listing_details(
+    sku: str,
+    include: List[Literal['summaries', 'attributes', 'issues', 'offers', 'fulfillmentAvailability', 'procurement', 'relationships', 'productTypes']]
+    ):
+    
+    response = listings_client.get_listings_item(
         sellerId=SELLER_ID,
-        sku=sku
+        sku=sku,
+        includedData=include
     )
-    return response.payload['summaries'][0]['productType']
+    return response
 
 def update_image(sku, product_type, image_path):
 
@@ -64,7 +70,7 @@ if __name__ == "__main__":
             image = product["MORNING_IMAGE"]
         elif len(args) > 0 and args[0] == "2":
             image = product["EVENING_IMAGE"]
-        product_type = get_product_type(SKUS[0])
+        product_type = get_listing_details(sku=SKUS[0], include=['summaries','productTypes']).payload['summaries'][0]['productType']
         for sku in SKUS:
             update_image(sku, product_type=product_type, image_path=image)
             time.sleep(0.5)
