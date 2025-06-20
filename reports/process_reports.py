@@ -1,4 +1,5 @@
 import time, json
+from json import JSONDecodeError
 from datetime import timedelta, date
 from sp_api.base import ReportType, SellingApiBadRequestException, SellingApiRequestThrottledException, ApiResponse
 
@@ -25,7 +26,10 @@ def check_and_download_report(response: ApiResponse | None = None, report_id: st
         report_document_obj = report.get_report_document(
             reportDocumentId = report_status['reportDocumentId'],
             download=True)
-        report_document = json.loads(report_document_obj.payload['document'])
+        try:
+            report_document = json.loads(report_document_obj.payload['document'])
+        except JSONDecodeError:
+            report_document = report_document_obj.payload['document']
         print(f"document id: {report_status['reportDocumentId']}")
         return report_document
     else:
@@ -68,27 +72,28 @@ def request_scp_data():
             time.sleep(60)
 
 
-all_reports = fetch_reports(processing_statuses=[])
-print(len(all_reports))
+def pull_multiple_documents():
+    all_reports = fetch_reports(processing_statuses=[])
+    print(len(all_reports))
 
-all_reports = [x for x in all_reports if x['processingStatus'] != "FATAL"]
+    all_reports = [x for x in all_reports if x['processingStatus'] != "FATAL"]
 
-import pickle
-def pickle_dump(obj):
-    with open('/home/misunderstood/Downloads/scp_documents.pkl','wb') as f:
-        pickle.dump(obj, f)
+    import pickle
+    def pickle_dump(obj):
+        with open('/home/misunderstood/Downloads/documents.pkl','wb') as f:
+            pickle.dump(obj, f)
 
-all_documents = {}
-for report_obj in all_reports[::-1]:
-    if report_obj['reportId'] not in all_documents:
-        try:
-            document = check_and_download_report(report_id=report_obj['reportId'])
-            all_documents[report_obj['reportId']] = document
-            pickle_dump(all_documents)
-            print(f'{len(all_documents)} retrieved')
-            time.sleep(1/0.0167)
-        except (SellingApiBadRequestException, SellingApiRequestThrottledException):
-            print(f'Ran out of limits, waiting for {1/0.0167} seconds')
-            time.sleep(1/0.0167)
-    else:
-        print('Document already retrieved')
+    all_documents = {}
+    for report_obj in all_reports[::-1]:
+        if report_obj['reportId'] not in all_documents:
+            try:
+                document = check_and_download_report(report_id=report_obj['reportId'])
+                all_documents[report_obj['reportId']] = document
+                pickle_dump(all_documents)
+                print(f'{len(all_documents)} retrieved')
+                time.sleep(1/0.0167)
+            except (SellingApiBadRequestException, SellingApiRequestThrottledException):
+                print(f'Ran out of limits, waiting for {1/0.0167} seconds')
+                time.sleep(1/0.0167)
+        else:
+            print('Document already retrieved')
