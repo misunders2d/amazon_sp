@@ -1,11 +1,9 @@
 import time, json
 from json import JSONDecodeError
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from sp_api.base import ReportType, SellingApiBadRequestException, SellingApiRequestThrottledException, ApiResponse
 
-from .report_init import report
-
-from .search_catalog_performance import search_catalog_performance_report
+from . import search_catalog_performance_report, all_orders_report, report
 
 from connection import connect_to_bigquery
 
@@ -37,11 +35,16 @@ def check_and_download_report(response: ApiResponse | None = None, report_id: st
 
 def fetch_reports(
         report_types:list=[ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT],
-        processing_statuses:list=[str]
+        processing_statuses:list=[str],
+        created_since=datetime.now() - timedelta(days=90)
         ):
     sleep_time = round(1/0.0222,2)
     all_reports = []
-    r = report.get_reports(reportTypes=report_types,processingStatuses=processing_statuses, pageSize=100)
+    r = report.get_reports(
+        reportTypes=report_types,
+        processingStatuses=processing_statuses,
+        createdSince=created_since,
+        pageSize=100)
     all_reports.extend(r.payload['reports'])
     next_token = r.next_token
     while next_token:
@@ -97,3 +100,4 @@ def pull_multiple_documents():
                 time.sleep(1/0.0167)
         else:
             print('Document already retrieved')
+
