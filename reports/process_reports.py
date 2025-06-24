@@ -29,9 +29,11 @@ def check_and_download_report(response: ApiResponse | None = None, report_id: st
         except JSONDecodeError:
             report_document = report_document_obj.payload['document']
         print(f"document id: {report_status['reportDocumentId']}")
-        return report_document
     else:
         print(f"report status: {report_status['processingStatus']}")
+        report_document = ''
+    return report_document
+
 
 def fetch_reports(
         report_types:list=[ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT],
@@ -101,3 +103,10 @@ def pull_multiple_documents():
         else:
             print('Document already retrieved')
 
+
+if __name__ == "__main__":
+    today = datetime.now().date()
+    response = all_orders_report()
+    report_document = check_and_download_report(response)
+    with open(f'/home/misunderstood/temp/All Orders {str(today)}.txt','w') as f:
+        f.write(report_document)
