@@ -1,4 +1,5 @@
 import time, json
+from typing import Literal, List
 from json import JSONDecodeError
 from datetime import timedelta, date, datetime
 from sp_api.base import ReportType, SellingApiBadRequestException, SellingApiRequestThrottledException, ApiResponse
@@ -37,7 +38,7 @@ def check_and_download_report(response: ApiResponse | None = None, report_id: st
 
 def fetch_reports(
         report_types:list=[ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT],
-        processing_statuses:list=[str],
+        processing_statuses:List[Literal["CANCELLED","DONE","FATAL","IN_PROGRESS","IN_QUEUE"]]=[],
         created_since=datetime.now() - timedelta(days=90)
         ):
     sleep_time = round(1/0.0222,2)
@@ -58,19 +59,19 @@ def fetch_reports(
             next_token = r.next_token
         except (SellingApiBadRequestException, SellingApiRequestThrottledException):
             print(f'Ran out of limits, waiting for {sleep_time} seconds')
-            time.sleep(20)
+            time.sleep(sleep_time)
         except Exception as e:
             print(f"Unknown error: {e}")
     return all_reports
 
 
-def request_scp_data():
-    week_start = date(2024, 2, 18)
+def request_scp_data(week_start = date(2025,6,15)):
     
-    while week_start <= date(2025,6,13):
+    while week_start <= date(2025,6,15):
         try:
-            search_catalog_performance_report(week_start)
+            response = search_catalog_performance_report(week_start)
             time.sleep(20)
+            print(response.payload)
             week_start = week_start + timedelta(days=7)
         except (SellingApiBadRequestException, SellingApiRequestThrottledException):
             print('Ran out of limits, waiting for 60 seconds')

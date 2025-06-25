@@ -2,7 +2,7 @@ import pickle
 import pandas as pd
 import pandas_gbq
 
-file_path = '/home/misunderstood/Downloads/scp_documents.pkl'
+file_path = '/home/misunderstood/Downloads/documents.pkl'
 
 from connection import create_credentials
 
@@ -32,7 +32,7 @@ print(full_df.shape)
 pandas_gbq.to_gbq(
     full_df,
     destination_table='mellanni-project-da.auxillary_development.scp_asin_weekly',
-    if_exists='replace',
+    if_exists='append',
     credentials=create_credentials())
 
 
