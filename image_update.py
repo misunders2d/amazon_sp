@@ -31,14 +31,26 @@ def get_listing_details(
     )
     return response
 
-def update_image(sku, product_type, image_path):
+def update_image(
+        sku,
+        product_type,
+        image_path,
+        op: Literal['replace','delete']='replace',
+        path: Literal[
+            'main_product_image_locator','other_product_image_locator_1',
+            'other_product_image_locator_2','other_product_image_locator_3',
+            'other_product_image_locator_4','other_product_image_locator_5',
+            'other_product_image_locator_6','other_product_image_locator_7',
+            'other_product_image_locator_8','swatch_product_image_locator',
+            ]='main_product_image_locator'
+        ):
 
     patch_body = {
         "productType":product_type,
         "patches":[
             {
-                "op":"replace",
-                "path":"/attributes/main_product_image_locator", #other_product_image_locator_8
+                "op":op,
+                "path":f"/attributes/{path}", #other_product_image_locator_8
                 "value":[
                     {
                         "media_location":image_path
@@ -54,10 +66,19 @@ def update_image(sku, product_type, image_path):
             marketplaceIds=MARKETPLACE_IDS,
             body=patch_body
         )
-        send_telegram_message(f"Image updated for {sku} with status {response.payload['status']}\nImage: {image}\n\n")
+        print(f"Image updated for {sku} with status {response.payload['status']}\nImage: {image_path}\n\n")
     except Exception as e:
-        send_telegram_message(f"FAILED to update image for {sku}:\n{e}")
+        print(f"FAILED to update image for {sku}:\n{e}")
+        return e
 
+def batch_delete_image(SKUS, product_type, image_path, op='delete', path='other_product_image_locator_6'):
+    failed_images = {}
+    for sku in SKUS:
+        result = update_image(sku, product_type, image_path, op='delete', path='other_product_image_locator_6')
+        time.sleep(1/5)
+        if result:
+            failed_images[sku] = result
+    return failed_images
 
 if __name__ == "__main__":
     args = sys.argv[1:]

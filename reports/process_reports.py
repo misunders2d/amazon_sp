@@ -65,9 +65,9 @@ def fetch_reports(
     return all_reports
 
 
-def request_scp_data(week_start = date(2025,6,15)):
+def request_scp_data(week_start = date(2025,6,29)):
     
-    while week_start <= date(2025,6,15):
+    while week_start <= date(2025,6,29):
         try:
             response = search_catalog_performance_report(week_start)
             time.sleep(20)

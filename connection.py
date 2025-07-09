@@ -6,7 +6,7 @@ def create_credentials():
     credentials = service_account.Credentials.from_service_account_file(credentials_path)
     return credentials
 
-def connect_to_bigquery(credentials_path='.secrets/sp_api_bq_creds.json'):
+def connect_to_bigquery():
     credentials = create_credentials()
     client = bigquery.Client(credentials=credentials, project=credentials.project_id)
     return client
