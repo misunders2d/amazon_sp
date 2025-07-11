@@ -18,10 +18,10 @@ credentials = dict(
 
 report = Reports(credentials=credentials)
 
-def all_orders_report() -> ApiResponse:
+def all_orders_report(days=3) -> ApiResponse:
     response = report.create_report(
         reportType=ReportType.GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL,
-        dataStartTime = datetime.now() - timedelta(days=3)
+        dataStartTime = datetime.now() - timedelta(days=days)
         )
 
     report_id = response.payload['reportId']

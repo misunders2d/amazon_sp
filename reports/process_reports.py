@@ -107,7 +107,7 @@ def pull_multiple_documents():
 
 if __name__ == "__main__":
     today = datetime.now().date()
-    response = all_orders_report()
+    response = all_orders_report(days=5)
     report_document = check_and_download_report(response)
     with open(f'/home/misunderstood/temp/All Orders {str(today)}.txt','w') as f:
         f.write(report_document)
