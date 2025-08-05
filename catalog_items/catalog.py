@@ -20,10 +20,10 @@ credentials = dict(
 catalog_items = CatalogItems(credentials=credentials)
 
 c2 = catalog_items.get_catalog_item(
-    asin="B00RKHWJ1O",
+    asin="B01M16WBW1",
     includedData=[
-        "attributes","classifications"#,"dimensions","identifiers",
-        #"images","productTypes","salesRanks","summaries","relationships"#,"vendorDetails"
+        "attributes","summaries","identifiers"#"classifications"#,"dimensions",,
+        #"images","productTypes","salesRanks","relationships"#,"vendorDetails"
         ]
     )
 
@@ -31,7 +31,7 @@ c2 = catalog_items.get_catalog_item(
 from authentication import get_access_token
 access_token = get_access_token()
         
-url = "https://sellingpartnerapi-na.amazon.com/catalog/2022-04-01/items/B00RKHWJ1O"
+url = "https://sellingpartnerapi-na.amazon.com/catalog/2022-04-01/items/B01M16WBW1"
 
 headers = {
     "accept": "application/json",

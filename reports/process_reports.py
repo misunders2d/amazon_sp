@@ -65,19 +65,6 @@ def fetch_reports(
     return all_reports
 
 
-def request_scp_data(week_start = date(2025,6,29)):
-    
-    while week_start <= date(2025,6,29):
-        try:
-            response = search_catalog_performance_report(week_start)
-            time.sleep(20)
-            print(response.payload)
-            week_start = week_start + timedelta(days=7)
-        except (SellingApiBadRequestException, SellingApiRequestThrottledException):
-            print('Ran out of limits, waiting for 60 seconds')
-            time.sleep(60)
-
-
 def pull_multiple_documents():
     all_reports = fetch_reports(processing_statuses=[])
     print(len(all_reports))
@@ -107,7 +94,7 @@ def pull_multiple_documents():
 
 if __name__ == "__main__":
     today = datetime.now().date()
-    response = all_orders_report(days=5)
+    response = all_orders_report(days=3)
     report_document = check_and_download_report(response)
     with open(f'/home/misunderstood/temp/All Orders {str(today)}.txt','w') as f:
         f.write(report_document)

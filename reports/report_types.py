@@ -3,6 +3,7 @@ from sp_api.base import ReportType, ApiResponse
 from sp_api.api import  Reports
 
 import os
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -18,6 +19,15 @@ credentials = dict(
 
 report = Reports(credentials=credentials)
 
+def get_last_sunday(date:datetime = None):
+    if not date:
+        date = datetime.now().date()
+    if not isinstance(date, datetime):
+        raise BaseException("Date must be in datetime format")
+    delta = date.isocalendar().weekday + 7
+    last_sunday = date - timedelta(days=delta)
+    return last_sunday.date()
+
 def all_orders_report(days=3) -> ApiResponse:
     response = report.create_report(
         reportType=ReportType.GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL,
@@ -29,7 +39,9 @@ def all_orders_report(days=3) -> ApiResponse:
     return response
 
 
-def search_catalog_performance_report(week_start):
+def search_catalog_performance_report(week_start: datetime = None):
+    if not week_start:
+        week_start = get_last_sunday(datetime.now())
     report_options = {
         "reportPeriod":'WEEK',
     }

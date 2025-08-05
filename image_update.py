@@ -36,7 +36,7 @@ def update_image(
         product_type,
         image_path,
         op: Literal['replace','delete']='replace',
-        path: Literal[
+        attribute_path: Literal[
             'main_product_image_locator','other_product_image_locator_1',
             'other_product_image_locator_2','other_product_image_locator_3',
             'other_product_image_locator_4','other_product_image_locator_5',
@@ -50,7 +50,7 @@ def update_image(
         "patches":[
             {
                 "op":op,
-                "path":f"/attributes/{path}", #other_product_image_locator_8
+                "path":f"/attributes/{attribute_path}", #other_product_image_locator_8
                 "value":[
                     {
                         "media_location":image_path
@@ -71,10 +71,10 @@ def update_image(
         print(f"FAILED to update image for {sku}:\n{e}")
         return e
 
-def batch_delete_image(SKUS, product_type, image_path, op='delete', path='other_product_image_locator_6'):
+def batch_delete_image(SKUS, product_type, image_path, op='delete', attribute_path='other_product_image_locator_8'):
     failed_images = {}
     for sku in SKUS:
-        result = update_image(sku, product_type, image_path, op='delete', path='other_product_image_locator_6')
+        result = update_image(sku, product_type, image_path, op='delete', attribute_path=attribute_path)
         time.sleep(1/5)
         if result:
             failed_images[sku] = result
