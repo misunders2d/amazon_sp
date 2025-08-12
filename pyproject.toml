@@ -1,0 +1,16 @@
+[project]
+name = "amazon-sp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "google-auth>=2.40.3",
+    "google-cloud-bigquery>=3.35.1",
+    "openpyxl>=3.1.5",
+    "pandas>=2.3.1",
+    "pandas-gbq>=0.29.2",
+    "python-amazon-sp-api>=1.9.46",
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.4",
+]
