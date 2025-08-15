@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from sp_api.base import ReportType, ApiResponse
-from sp_api.api import  Reports
+from sp_api.api import  Reports, CatalogItems
 
 import os
 from datetime import datetime, timedelta
@@ -18,6 +18,21 @@ credentials = dict(
 )
 
 report = Reports(credentials=credentials)
+
+
+def get_asin_data(asin):
+    catalog_items = CatalogItems(credentials=credentials)
+    
+    response = catalog_items.get_catalog_item(
+        asin=asin,
+        marketplaceIds=["ATVPDKIKX0DER"],
+        includedData=["images","attributes","summaries","identifiers"
+            #"classifications"#,"dimensions",,
+            #"images","productTypes","salesRanks","relationships"#,"vendorDetails"
+            ]
+        )
+    return response
+
 
 def get_last_sunday(date:datetime = None):
     if not date:
