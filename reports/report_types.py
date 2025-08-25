@@ -34,14 +34,14 @@ def get_asin_data(asin):
     return response
 
 
-def get_last_sunday(date:datetime = None):
+def get_last_sunday(date:datetime | None = None):
     if not date:
-        date = datetime.now().date()
+        date = datetime.now()
     if not isinstance(date, datetime):
         raise BaseException("Date must be in datetime format")
     delta = date.isocalendar().weekday + 7
     last_sunday = date - timedelta(days=delta)
-    return last_sunday.date()
+    return last_sunday
 
 def all_orders_report(days=3) -> ApiResponse:
     response = report.create_report(
@@ -54,7 +54,7 @@ def all_orders_report(days=3) -> ApiResponse:
     return response
 
 
-def search_catalog_performance_report(week_start: datetime = None):
+def search_catalog_performance_report(week_start: datetime | None = None):
     if not week_start:
         week_start = get_last_sunday(datetime.now())
     report_options = {
@@ -63,7 +63,7 @@ def search_catalog_performance_report(week_start: datetime = None):
     response = report.create_report(
         reportType=ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
         reportOptions=report_options,
-        dataStartTime=str(week_start),
+        dataStartTime=str(week_start.date()),
         dataEndTime=str(week_start + timedelta(days=6))
         )
 
