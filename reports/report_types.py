@@ -64,7 +64,7 @@ def search_catalog_performance_report(week_start: datetime | None = None):
         reportType=ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
         reportOptions=report_options,
         dataStartTime=str(week_start.date()),
-        dataEndTime=str(week_start + timedelta(days=6))
+        dataEndTime=str(week_start.date() + timedelta(days=6))
         )
 
     report_id = response.payload['reportId'] # first search catalog performance report id: '3458825020258'

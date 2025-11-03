@@ -2,22 +2,26 @@ import pickle
 import pandas as pd
 import pandas_gbq
 
-file_path = '/home/misunderstood/Downloads/documents.pkl'
 
 from connection import create_credentials
+from report_types import search_catalog_performance_report
+from reports.process_reports import check_and_download_report
 
-with open(file_path, 'rb') as f:
-    documents = pickle.load(f)
+file_path = '/home/misunderstood/Downloads/documents.pkl'
+# with open(file_path, 'rb') as f:
+#     documents = pickle.load(f)
+documents = []
 
+response = search_catalog_performance_report()
+report_document = check_and_download_report(response)
+documents.append(report_document)
 
 full_df = pd.DataFrame()
 all_rows = []
-# doc = '3458943020258'
+
 for i, doc in enumerate(documents, start=1):
-    if documents[doc] is None:
-        print(f'Document {doc} is empty')
     print(f'Processing document {i} of {len(documents)}')
-    asin_data = documents[doc]['dataByAsin']
+    asin_data = doc['dataByAsin']
     for asin_row in asin_data:
         temp_df = pd.json_normalize(asin_row)
         temp_df = temp_df.dropna(axis=1, how="all")
