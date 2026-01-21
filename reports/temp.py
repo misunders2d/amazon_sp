@@ -1,19 +1,21 @@
-import pickle
+# import pickle
 import pandas as pd
 import pandas_gbq
 
 
-from connection import create_credentials
-from report_types import search_catalog_performance_report
-from reports.process_reports import check_and_download_report
+import connection
+from .report_types import search_catalog_performance_report
+from .process_reports import check_and_download_report
 
-file_path = "/home/misunderstood/Downloads/documents.pkl"
+# file_path = "/home/misunderstood/Downloads/documents.pkl"
 # with open(file_path, 'rb') as f:
 #     documents = pickle.load(f)
 documents = []
 
 response = search_catalog_performance_report()
 report_document = check_and_download_report(response)
+if not report_document:
+    raise BaseException("Report could not be downloaded.")
 documents.append(report_document)
 
 full_df = pd.DataFrame()
@@ -35,13 +37,19 @@ full_df.columns = [
 ]
 print(full_df.shape)
 # full_df.to_excel('/home/misunderstood/temp/scp.xlsx',index=False)
+confirmation = input('Upload to GBQ? (y/n): ')
+if confirmation.lower() != 'y':
+    print("Upload cancelled.")
+    print(f"Document id for reference: {response.payload["reportId"] if response is not None else "N/A"}")
+    exit()
 pandas_gbq.to_gbq(
     full_df,
     destination_table="mellanni-project-da.auxillary_development.scp_asin_weekly",
     if_exists="append",
-    credentials=create_credentials(),
+    credentials=connection.create_credentials(),
 )
 
+print("All done")
 
 combine_query = """
 SELECT s.startdate, s.asin, s.impressiondata_impressioncount, d.collection

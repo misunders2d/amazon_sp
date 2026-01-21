@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sp_api.base import ReportType, ApiResponse
 from sp_api.api import Reports, CatalogItems
 
 import os
-from datetime import datetime, timedelta
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -77,4 +77,18 @@ def search_catalog_performance_report(week_start: datetime | None = None):
         "reportId"
     ]  # first search catalog performance report id: '3458825020258'
     print(f"report id: {report_id}")
+    return response
+
+
+def removal_order_report(days: int = 30):
+
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=min(days, 90))
+
+    response = report.create_report(
+        reportType=ReportType.GET_FBA_FULFILLMENT_REMOVAL_ORDER_DETAIL_DATA,
+        marketplaceIds=["ATVPDKIKX0DER"],
+        dataStartTime=start,
+        dataEndTime=end,
+    )
     return response
