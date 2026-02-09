@@ -1,7 +1,8 @@
-import time, json
+import time
+import json
 from typing import Literal, List
 from json import JSONDecodeError
-from datetime import timedelta, date, datetime
+from datetime import timedelta, datetime
 from sp_api.base import (
     ReportType,
     SellingApiBadRequestException,
@@ -9,9 +10,7 @@ from sp_api.base import (
     ApiResponse,
 )
 
-from . import search_catalog_performance_report, all_orders_report, report
-
-from connection import connect_to_bigquery
+from . import all_orders_report, report
 
 
 def check_and_download_report(

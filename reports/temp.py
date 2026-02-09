@@ -37,10 +37,12 @@ full_df.columns = [
 ]
 print(full_df.shape)
 # full_df.to_excel('/home/misunderstood/temp/scp.xlsx',index=False)
-confirmation = input('Upload to GBQ? (y/n): ')
-if confirmation.lower() != 'y':
+confirmation = input("Upload to GBQ? (y/n): ")
+if confirmation.lower() != "y":
     print("Upload cancelled.")
-    print(f"Document id for reference: {response.payload["reportId"] if response is not None else "N/A"}")
+    print(
+        f"Document id for reference: {response.payload["reportId"] if response is not None else "N/A"}"
+    )
     exit()
 pandas_gbq.to_gbq(
     full_df,

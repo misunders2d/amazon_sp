@@ -92,3 +92,19 @@ def removal_order_report(days: int = 30):
         dataEndTime=end,
     )
     return response
+
+
+def fba_inventory_data(days: int = 30):
+
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=min(days, 90))
+
+    response = report.create_report(
+        reportType=ReportType.GET_EXCESS_INVENTORY_DATA,
+        marketplaceIds=["ATVPDKIKX0DER"],
+        dataStartTime=start,
+        dataEndTime=end,
+    )
+
+    return response
+

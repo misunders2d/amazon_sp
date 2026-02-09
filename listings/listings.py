@@ -189,9 +189,7 @@ def batch_close_listings(skus):
 def batch_remove_thread_count(skus):
     product_type_response = get_listing_details(sku=skus[0], include=["productTypes"])
     if isinstance(product_type_response, ApiResponse):
-        product_type = product_type_response.payload[
-            "productTypes"
-        ][0]["productType"]
+        product_type = product_type_response.payload["productTypes"][0]["productType"]
         patch_body = {
             "productType": product_type,
             "patches": [
