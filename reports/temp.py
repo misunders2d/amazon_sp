@@ -2,17 +2,17 @@
 import pandas as pd
 import pandas_gbq
 
-
 import connection
-from .report_types import search_catalog_performance_report
+
 from .process_reports import check_and_download_report
+from .report_types import brand_analytics_report
 
 # file_path = "/home/misunderstood/Downloads/documents.pkl"
 # with open(file_path, 'rb') as f:
 #     documents = pickle.load(f)
 documents = []
 
-response = search_catalog_performance_report()
+response = brand_analytics_report()
 report_document = check_and_download_report(response)
 if not report_document:
     raise BaseException("Report could not be downloaded.")

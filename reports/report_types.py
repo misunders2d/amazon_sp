@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta, timezone
-from sp_api.base import ReportType, ApiResponse
-from sp_api.api import Reports, CatalogItems
-
 import os
+from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from dotenv import load_dotenv
+from sp_api.api import CatalogItems, Reports
+from sp_api.base import ApiResponse, ReportType
 
 load_dotenv()
 
@@ -60,22 +60,34 @@ def all_orders_report(days=3) -> ApiResponse:
     return response
 
 
-def search_catalog_performance_report(week_start: datetime | None = None):
+def brand_analytics_report(
+    week_start: datetime | None = None,
+    report_type: Literal[
+        ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
+        ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT,
+    ] = ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
+    asin: str | None = None,
+):
+    """
+    Creates a brand analytics report - search query performance or search catalog performance.
+    """
     if not week_start:
         week_start = get_last_sunday(datetime.now())
     report_options = {
         "reportPeriod": "WEEK",
     }
+    if report_type == ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT:
+        if not asin:
+            raise BaseException("ASIN was not provided!")
+        report_options["asin"] = asin
     response = report.create_report(
-        reportType=ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
+        reportType=report_type,
         reportOptions=report_options,
         dataStartTime=str(week_start.date()),
         dataEndTime=str(week_start.date() + timedelta(days=6)),
     )
 
-    report_id = response.payload[
-        "reportId"
-    ]  # first search catalog performance report id: '3458825020258'
+    report_id = response.payload["reportId"]
     print(f"report id: {report_id}")
     return response
 
@@ -107,4 +119,3 @@ def fba_inventory_data(days: int = 30):
     )
 
     return response
-
