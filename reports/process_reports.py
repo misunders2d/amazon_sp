@@ -145,12 +145,12 @@ def check_if_ba_report_exists(document):
     unique_asins = [x for x in asins if x not in duplicate_asins]
     if duplicate_asins:
         print(
-            f"{len(duplicate_asins)} duplicate asins found for {start_date} {period}: ",
+            f"[[DUPLICATES]] {len(duplicate_asins)} duplicate asins found for {start_date} {period}: ",
             ", ".join(duplicate_asins),
         )
     if unique_asins:
         print(
-            f"{len(unique_asins)} unique asins found for {start_date} {period}: ",
+            f"[[UNIQUE]] {len(unique_asins)} unique asins found for {start_date} {period}: ",
             ", ".join(unique_asins),
         )
     return unique_asins
@@ -209,9 +209,9 @@ def upload_ba_report(document):
 
     report_to_upload = report_df.loc[report_df["asin"].isin(unique_asins)]
     if len(report_to_upload) == 0:
-        print("All records are duplicates, skipping")
+        print("[[RESULT]] All records are duplicates, skipping")
     else:
-        print(f"Uploading {len(report_to_upload)} rows to bigquery")
+        print(f"[[RESULT]] Uploading {len(report_to_upload)} rows to bigquery")
         pandas_gbq.to_gbq(
             report_to_upload,
             destination_table="mellanni-project-da.auxillary_development.sqp_asin_weekly",
@@ -268,7 +268,7 @@ if __name__ == "__main__":
         created_since=created_since,
         created_before=created_before,
     )
-    for report_record in all_reports:
-        pass
+    for i, report_record in enumerate(all_reports, start=1):
         document = check_and_download_report(report_id=report_record["reportId"])
         _ = upload_ba_report(document=document)
+        print(f"Uploaded {i} reports of {len(all_reports)}", end="\n\n")
