@@ -1,12 +1,14 @@
-from sp_api.api import ListingsItems
-import os, sys, time
-
-from telegram_notifier import send_telegram_message
-
-from image_links import product_details
+import os
+import sys
+import time
+from typing import List, Literal
 
 from dotenv import load_dotenv
-from typing import Literal, List
+from sp_api.api import ListingsItems
+
+import telegram_notifier
+from image_links import product_details
+from telegram_notifier import send_telegram_message
 
 load_dotenv()
 MARKETPLACE_IDS = ["ATVPDKIKX0DER", "A2EUQ1WTGCTBG2"]
@@ -76,11 +78,11 @@ def update_image(
         response = listings_client.patch_listings_item(
             sellerId=SELLER_ID, sku=sku, marketplaceIds=MARKETPLACE_IDS, body=patch_body
         )
-        print(
+        telegram_notifier.send_telegram_message(
             f"Image updated for {sku} with status {response.payload['status']}\nImage: {image_path}\n\n"
         )
     except Exception as e:
-        print(f"FAILED to update image for {sku}:\n{e}")
+        telegram_notifier.send_telegram_message(f"FAILED to update image for {sku}:\n{e}")
         return e
 
 
