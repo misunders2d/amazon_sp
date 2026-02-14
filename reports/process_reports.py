@@ -88,7 +88,7 @@ def fetch_reports(
         reportTypes=report_types,
         processingStatuses=processing_statuses,
         createdSince=created_since,
-        createdBefore=created_before,
+        createdUntil=created_before,
         pageSize=100,
     )
     all_reports.extend(r.payload["reports"])
@@ -283,7 +283,7 @@ if __name__ == "__main__":
     # report_ids = report_ids_df["reportId"].values.tolist()
     # all_reports = [{"reportId": x, "processingStatus": "DONE"} for x in report_ids]
     # pull_multiple_documents(all_reports)
-    created_since = datetime(2026, 1, 1)
+    created_since = datetime(2026, 2, 11)
     created_before = created_since + timedelta(days=1)
     while created_before < datetime.now():
         collect_sqp_reports(
