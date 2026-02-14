@@ -253,6 +253,29 @@ def pull_multiple_documents(all_reports: list | None = None):
             print("Document already retrieved")
 
 
+def collect_sqp_reports(created_since, created_before):
+    print(f"[[DATE: {created_since} to {created_before}]]")
+    try:
+        all_reports = fetch_reports(
+            report_types=[
+                ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT
+            ],
+            processing_statuses=["DONE"],
+            created_since=created_since.isoformat(),
+            created_before=created_before.isoformat(),
+        )
+        for i, report_record in enumerate(all_reports, start=1):
+            document = check_and_download_report(report_id=report_record["reportId"])
+            _ = upload_ba_report(document=document)
+            print(f"Uploaded {i} reports of {len(all_reports)}", end="\n\n")
+    except Exception as e:
+        print(f"[[ERROR for {str(e)}]]: {e}\nRetrying...")
+        collect_sqp_reports(
+            created_since=created_since.isoformat(),
+            created_before=created_before.isoformat(),
+        )
+
+
 if __name__ == "__main__":
     # report_ids_df = pd.read_excel(
     #     "/home/misunderstood/Downloads/sqp asin report ids.xlsx"
@@ -260,15 +283,13 @@ if __name__ == "__main__":
     # report_ids = report_ids_df["reportId"].values.tolist()
     # all_reports = [{"reportId": x, "processingStatus": "DONE"} for x in report_ids]
     # pull_multiple_documents(all_reports)
-    created_since = datetime(2026, 2, 1).isoformat()
-    created_before = datetime.now().isoformat()
-    all_reports = fetch_reports(
-        report_types=[ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT],
-        processing_statuses=["DONE"],
-        created_since=created_since,
-        created_before=created_before,
-    )
-    for i, report_record in enumerate(all_reports, start=1):
-        document = check_and_download_report(report_id=report_record["reportId"])
-        _ = upload_ba_report(document=document)
-        print(f"Uploaded {i} reports of {len(all_reports)}", end="\n\n")
+    created_since = datetime(2026, 1, 1)
+    created_before = created_since + timedelta(days=1)
+    while created_before < datetime.now():
+        collect_sqp_reports(
+            created_since=created_since.isoformat(),
+            created_before=created_before.isoformat(),
+        )
+        created_since, created_before = created_before, created_before + timedelta(
+            days=1
+        )
