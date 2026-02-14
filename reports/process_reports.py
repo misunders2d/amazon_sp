@@ -303,4 +303,4 @@ if __name__ == "__main__":
         logging.debug(
             msg=f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n"
         )
-        print("[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n")
+        print(f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n")
