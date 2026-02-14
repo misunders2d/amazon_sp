@@ -287,8 +287,8 @@ if __name__ == "__main__":
     created_before = created_since + timedelta(days=1)
     while created_before < datetime.now():
         collect_sqp_reports(
-            created_since=created_since.isoformat(),
-            created_before=created_before.isoformat(),
+            created_since=created_since,
+            created_before=created_before,
         )
         created_since, created_before = created_before, created_before + timedelta(
             days=1
