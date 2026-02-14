@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import pickle
 import time
@@ -19,6 +20,13 @@ from sp_api.base import (
 from connection import bigquery, connect_to_bigquery, create_credentials
 
 from . import all_orders_report, report
+
+logging.basicConfig(
+    filename="sqp_log.log",
+    filemode="a",
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 
 def check_and_download_report(
@@ -283,13 +291,16 @@ if __name__ == "__main__":
     # report_ids = report_ids_df["reportId"].values.tolist()
     # all_reports = [{"reportId": x, "processingStatus": "DONE"} for x in report_ids]
     # pull_multiple_documents(all_reports)
-    created_since = datetime(2026, 1, 1)
-    created_before = created_since + timedelta(days=1)
-    while created_before < datetime.now():
+    threshold = datetime(2025, 8, 1)
+    created_before = datetime.now()
+    created_since = created_before - timedelta(days=1)
+    while created_since > threshold:
+        created_before, created_since = created_since, created_since - timedelta(days=1)
         collect_sqp_reports(
             created_since=created_since,
             created_before=created_before,
         )
-        created_since, created_before = created_before, created_before + timedelta(
-            days=1
+        logging.debug(
+            msg=f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n"
         )
+        print("[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n")
