@@ -309,13 +309,13 @@ if __name__ == "__main__":
     send_telegram_message(
         message=f"Starting SQP reports update for {created_since.date()} - {created_before.date()}"
     )
-    # while created_since > threshold:
-    #     collect_sqp_reports(
-    #         created_since=created_since,
-    #         created_before=created_before,
-    #     )
-    #     logging.debug(
-    #         msg=f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n"
-    #     )
-    #     print(f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n")
-    #     created_before, created_since = created_since, created_since - timedelta(days=1)
+    while created_since > threshold:
+        collect_sqp_reports(
+            created_since=created_since,
+            created_before=created_before,
+        )
+        logging.debug(
+            msg=f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n"
+        )
+        print(f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n")
+        created_before, created_since = created_since, created_since - timedelta(days=1)
