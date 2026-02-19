@@ -18,6 +18,7 @@ from sp_api.base import (
 )
 
 from connection import bigquery, connect_to_bigquery, create_credentials
+from telegram_notifier import send_telegram_message
 
 from . import all_orders_report, report
 
@@ -305,13 +306,16 @@ if __name__ == "__main__":
     created_before = datetime.now()
     threshold = created_before - timedelta(days=3)
     created_since = created_before - timedelta(days=1)
-    while created_since > threshold:
-        collect_sqp_reports(
-            created_since=created_since,
-            created_before=created_before,
-        )
-        logging.debug(
-            msg=f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n"
-        )
-        print(f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n")
-        created_before, created_since = created_since, created_since - timedelta(days=1)
+    send_telegram_message(
+        message=f"Starting SQP reports update for {created_since.date()} - {created_before.date()}"
+    )
+    # while created_since > threshold:
+    #     collect_sqp_reports(
+    #         created_since=created_since,
+    #         created_before=created_before,
+    #     )
+    #     logging.debug(
+    #         msg=f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n"
+    #     )
+    #     print(f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n")
+    #     created_before, created_since = created_since, created_since - timedelta(days=1)
