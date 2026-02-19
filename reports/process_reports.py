@@ -302,8 +302,8 @@ if __name__ == "__main__":
     # report_ids = report_ids_df["reportId"].values.tolist()
     # all_reports = [{"reportId": x, "processingStatus": "DONE"} for x in report_ids]
     # pull_multiple_documents(all_reports)
-    threshold = datetime(2025, 8, 1)
-    created_before = datetime(2026, 1, 9)
+    created_before = datetime.now()
+    threshold = created_before - timedelta(days=7)
     created_since = created_before - timedelta(days=1)
     while created_since > threshold:
         collect_sqp_reports(
