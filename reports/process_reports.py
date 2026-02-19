@@ -303,7 +303,7 @@ if __name__ == "__main__":
     # all_reports = [{"reportId": x, "processingStatus": "DONE"} for x in report_ids]
     # pull_multiple_documents(all_reports)
     created_before = datetime.now()
-    threshold = created_before - timedelta(days=7)
+    threshold = created_before - timedelta(days=3)
     created_since = created_before - timedelta(days=1)
     while created_since > threshold:
         collect_sqp_reports(
