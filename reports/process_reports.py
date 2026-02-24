@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -20,7 +21,7 @@ from sp_api.base import (
 from connection import bigquery, connect_to_bigquery, create_credentials
 from telegram_notifier import send_telegram_message
 
-from . import all_orders_report, report
+from . import Reports, credentials
 
 logging.basicConfig(
     filename="sqp_log.log",
@@ -30,7 +31,7 @@ logging.basicConfig(
 )
 
 
-def check_and_download_report(
+async def check_and_download_report(
     response: ApiResponse | None = None, report_id: str | None = None, timeout=5
 ):
     rate_limit = 0.0167
@@ -38,47 +39,55 @@ def check_and_download_report(
         raise ValueError("Either a response or a report ID must be provided")
 
     report_id = response.payload["reportId"] if response is not None else report_id
-    report_status = report.get_report(reportId=report_id).payload
+    async with Reports(credentials=credentials) as report:
+        report_status_job = await report.get_report(reportId=report_id)
+        report_status = report_status_job.payload
 
-    while report_status["processingStatus"] in ("IN_PROGRESS", "IN_QUEUE"):
-        print("Waiting for 10 seconds")
-        time.sleep(10)
-        report_status = report.get_report(reportId=report_id).payload
-        print(f"report status: {report_status['processingStatus']}")
+        while report_status["processingStatus"] in ("IN_PROGRESS", "IN_QUEUE"):
+            print("Waiting for 10 seconds")
+            time.sleep(10)
+            report_status_job = await report.get_report(reportId=report_id)
+            report_status = report_status_job.payload
 
-    if report_status["processingStatus"] == "DONE":
-        try:
-            report_document_obj = report.get_report_document(
-                reportDocumentId=report_status["reportDocumentId"],
-                download=True,
-                timeout=timeout,
-            )
+            print(f"report status: {report_status['processingStatus']}")
+
+        if report_status["processingStatus"] == "DONE":
             try:
-                report_document = json.loads(report_document_obj.payload["document"])
-            except JSONDecodeError:
-                report_document = report_document_obj.payload["document"]
-        except SellingApiRequestThrottledException:
-            print(f"Hit rate limits, sleeping for {int(1/rate_limit)+2} seconds")
-            time.sleep(int(1 / rate_limit) + 2)
-            report_document = check_and_download_report(
-                report_id=report_id, timeout=int(1 / rate_limit) + 2
-            )
+                report_document_obj = await report.get_report_document(
+                    reportDocumentId=report_status["reportDocumentId"],
+                    download=True,
+                    timeout=timeout,
+                )
+                try:
+                    report_document = json.loads(
+                        report_document_obj.payload["document"]
+                    )
+                except JSONDecodeError:
+                    report_document = report_document_obj.payload["document"]
+            except SellingApiRequestThrottledException:
+                print(f"Hit rate limits, sleeping for {int(1/rate_limit)+2} seconds")
+                time.sleep(int(1 / rate_limit) + 2)
+                report_document = await check_and_download_report(
+                    report_id=report_id, timeout=int(1 / rate_limit) + 2
+                )
 
-        except Exception as e:
-            print(f"Unknown error occurred, cooling down and retrying.\n Error: {e}")
-            time.sleep(int(1 / rate_limit) + 2)
-            report_document = check_and_download_report(
-                report_id=report_id, timeout=int(1 / rate_limit) + 2
-            )
+            except Exception as e:
+                print(
+                    f"Unknown error occurred, cooling down and retrying.\n Error: {e}"
+                )
+                time.sleep(int(1 / rate_limit) + 2)
+                report_document = await check_and_download_report(
+                    report_id=report_id, timeout=int(1 / rate_limit) + 2
+                )
 
-        print(f"document id: {report_status['reportDocumentId']}")
-    else:
-        print(f"report status: {report_status['processingStatus']}")
-        report_document = ""
-    return report_document
+            print(f"document id: {report_status['reportDocumentId']}")
+        else:
+            print(f"report status: {report_status['processingStatus']}")
+            report_document = ""
+        return report_document
 
 
-def fetch_reports(
+async def fetch_reports(
     report_types: list = [
         ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT
     ],
@@ -93,13 +102,14 @@ def fetch_reports(
     """
     sleep_time = round(1 / 0.0222, 2) + 1
     all_reports = []
-    r = report.get_reports(
-        reportTypes=report_types,
-        processingStatuses=processing_statuses,
-        createdSince=created_since,
-        createdUntil=created_before,
-        pageSize=100,
-    )
+    async with Reports(credentials=credentials) as report:
+        r = await report.get_reports(
+            reportTypes=report_types,
+            processingStatuses=processing_statuses,
+            createdSince=created_since,
+            createdUntil=created_before,
+            pageSize=100,
+        )
     all_reports.extend(r.payload["reports"])
     next_token = r.next_token
     page = 2
@@ -109,10 +119,11 @@ def fetch_reports(
         )
         time.sleep(sleep_time)
         try:
-            r = report.get_reports(nextToken=next_token)
-            all_reports.extend(r.payload["reports"])
-            next_token = r.next_token
-            page += 1
+            async with Reports(credentials=credentials) as report:
+                r = await report.get_reports(nextToken=next_token)
+                all_reports.extend(r.payload["reports"])
+                next_token = r.next_token
+                page += 1
         except (SellingApiBadRequestException, SellingApiRequestThrottledException):
             print(f"Ran out of limits, waiting for {sleep_time} seconds")
             time.sleep(sleep_time)
@@ -121,7 +132,7 @@ def fetch_reports(
     return all_reports
 
 
-def check_if_ba_report_exists(document):
+async def check_if_ba_report_exists(document):
     asins = document["reportSpecification"].get("reportOptions", {}).get("asin")
     print("Checking asins: ")
     print(asins)
@@ -207,14 +218,12 @@ def process_document(document):
     return result
 
 
-def upload_ba_report(document):
-    executor = ThreadPoolExecutor()
+async def upload_ba_report(document):
 
-    unique_asins_job = executor.submit(check_if_ba_report_exists, document)
-    report_df_job = executor.submit(process_document, document)
+    unique_asins_job = check_if_ba_report_exists(document)
+    report_df = process_document(document)
 
-    unique_asins = unique_asins_job.result()
-    report_df = report_df_job.result()
+    unique_asins = await unique_asins_job
 
     report_to_upload = report_df.loc[report_df["asin"].isin(unique_asins)]
     if len(report_to_upload) == 0:
@@ -224,15 +233,15 @@ def upload_ba_report(document):
         pandas_gbq.to_gbq(
             report_to_upload,
             destination_table="mellanni-project-da.auxillary_development.sqp_asin_weekly",
-            credentials=create_credentials(),
+            credentials=credentials,
             if_exists="append",
         )
 
 
-def pull_multiple_documents(all_reports: list | None = None):
+async def pull_multiple_documents(all_reports: list | None = None):
     pkl_file = "/home/misunderstood/Downloads/documents.pkl"
     if not all_reports:
-        all_reports = fetch_reports(processing_statuses=[])
+        all_reports = await fetch_reports(processing_statuses=[])
     print(len(all_reports))
 
     all_reports = [x for x in all_reports if x["processingStatus"] != "FATAL"]
@@ -249,12 +258,12 @@ def pull_multiple_documents(all_reports: list | None = None):
 
     for report_obj in all_reports[::-1]:
         if report_obj["reportId"] not in all_documents:
-            document = check_and_download_report(report_id=report_obj["reportId"])
+            document = await check_and_download_report(report_id=report_obj["reportId"])
             all_documents[report_obj["reportId"]] = document
             pickle_dump(all_documents)
             print(f"{len(all_documents)} retrieved")
             # time.sleep(1 / 0.0167)
-            upload_ba_report(document)
+            await upload_ba_report(document)
             print("Cancel the job now if you want to stop")
             time.sleep(2)
 
@@ -262,7 +271,7 @@ def pull_multiple_documents(all_reports: list | None = None):
             print("Document already retrieved")
 
 
-def collect_sqp_reports(created_since, created_before):
+async def collect_sqp_reports(created_since, created_before):
     print(f"[[DATE: {created_since} to {created_before}]]")
     created_since = (
         created_since.isoformat()
@@ -276,7 +285,7 @@ def collect_sqp_reports(created_since, created_before):
     )
 
     try:
-        all_reports = fetch_reports(
+        all_reports = await fetch_reports(
             report_types=[
                 ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT
             ],
@@ -285,34 +294,43 @@ def collect_sqp_reports(created_since, created_before):
             created_before=created_before,
         )
         for i, report_record in enumerate(all_reports, start=1):
-            document = check_and_download_report(report_id=report_record["reportId"])
-            _ = upload_ba_report(document=document)
+            document = await check_and_download_report(
+                report_id=report_record["reportId"]
+            )
+            _ = await upload_ba_report(document=document)
             print(f"Uploaded {i} reports of {len(all_reports)}", end="\n\n")
     except Exception as e:
         print(f"[[ERROR for {str(e)}]]: {e}\nRetrying...")
-        collect_sqp_reports(
+        await collect_sqp_reports(
             created_since=created_since,
             created_before=created_before,
         )
 
 
+async def get_report_schedules():
+    async with Reports(credentials=credentials) as report:
+        r = await report.get_report_schedules(
+            reportTypes=[
+                ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT,
+                ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
+            ]
+        )
+    return r.payload
+
+
 if __name__ == "__main__":
-    # report_ids_df = pd.read_excel(
-    #     "/home/misunderstood/Downloads/sqp asin report ids.xlsx"
-    # )
-    # report_ids = report_ids_df["reportId"].values.tolist()
-    # all_reports = [{"reportId": x, "processingStatus": "DONE"} for x in report_ids]
-    # pull_multiple_documents(all_reports)
-    created_before = datetime.now()
-    threshold = created_before - timedelta(days=3)
-    created_since = created_before - timedelta(days=1)
+    created_before = datetime.now() + timedelta(days=1)
+    threshold = created_before - timedelta(days=4)
+    created_since = created_before - timedelta(days=2)
     send_telegram_message(
         message=f"Starting SQP reports update for {created_since.date()} - {created_before.date()}"
     )
     while created_since > threshold:
-        collect_sqp_reports(
-            created_since=created_since,
-            created_before=created_before,
+        asyncio.run(
+            collect_sqp_reports(
+                created_since=created_since,
+                created_before=created_before,
+            )
         )
         logging.debug(
             msg=f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n"

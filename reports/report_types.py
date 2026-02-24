@@ -3,12 +3,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from dotenv import load_dotenv
-from sp_api.api import CatalogItems, Reports
+
+# from sp_api.api import CatalogItems, Reports
+from sp_api.asyncio.api import CatalogItems, Reports
 from sp_api.base import ApiResponse, ReportType
 
 load_dotenv()
-
-
 REFRESH_TOKEN_EU = os.environ["REFRESH_TOKEN_EU"]
 REFRESH_TOKEN_US = os.environ["REFRESH_TOKEN_US"]
 
@@ -18,13 +18,11 @@ credentials = dict(
     lwa_client_secret=os.environ["CLIENT_SECRET"],
 )
 
-report = Reports(credentials=credentials)
 
-
-def get_asin_data(asin):
+async def get_asin_data(asin):
     catalog_items = CatalogItems(credentials=credentials)
 
-    response = catalog_items.get_catalog_item(
+    response = await catalog_items.get_catalog_item(
         asin=asin,
         marketplaceIds=["ATVPDKIKX0DER"],
         includedData=[
@@ -39,28 +37,29 @@ def get_asin_data(asin):
     return response
 
 
-def get_last_sunday(date: datetime | None = None):
+def get_last_sunday(date: datetime | None = None, day_delta: int = 7):
     if not date:
         date = datetime.now()
     if not isinstance(date, datetime):
         raise BaseException("Date must be in datetime format")
-    delta = date.isocalendar().weekday + 7
+    delta = date.isocalendar().weekday + day_delta
     last_sunday = date - timedelta(days=delta)
     return last_sunday
 
 
-def all_orders_report(days=3) -> ApiResponse:
-    response = report.create_report(
-        reportType=ReportType.GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL,
-        dataStartTime=datetime.now() - timedelta(days=days),
-    )
+async def all_orders_report(days=3) -> ApiResponse:
+    async with Reports(credentials=credentials) as report:
+        response = await report.create_report(
+            reportType=ReportType.GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL,
+            dataStartTime=datetime.now() - timedelta(days=days),
+        )
 
     report_id = response.payload["reportId"]
     print(f"report id: {report_id}")
     return response
 
 
-def brand_analytics_report(
+async def brand_analytics_report(
     week_start: datetime | None = None,
     report_type: Literal[
         ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
@@ -73,6 +72,8 @@ def brand_analytics_report(
     """
     if not week_start:
         week_start = get_last_sunday(datetime.now())
+    if not week_start.weekday() == 6:
+        week_start = get_last_sunday(week_start, day_delta=0)
     report_options = {
         "reportPeriod": "WEEK",
     }
@@ -80,42 +81,45 @@ def brand_analytics_report(
         if not asin:
             raise BaseException("ASIN was not provided!")
         report_options["asin"] = asin
-    response = report.create_report(
-        reportType=report_type,
-        reportOptions=report_options,
-        dataStartTime=str(week_start.date()),
-        dataEndTime=str(week_start.date() + timedelta(days=6)),
-    )
+    async with Reports(credentials=credentials) as report:
+        response = await report.create_report(
+            reportType=report_type,
+            reportOptions=report_options,
+            dataStartTime=str(week_start.date()),
+            dataEndTime=str(week_start.date() + timedelta(days=6)),
+        )
 
     report_id = response.payload["reportId"]
     print(f"report id: {report_id}")
     return response
 
 
-def removal_order_report(days: int = 30):
+async def removal_order_report(days: int = 30):
 
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=min(days, 90))
 
-    response = report.create_report(
-        reportType=ReportType.GET_FBA_FULFILLMENT_REMOVAL_ORDER_DETAIL_DATA,
-        marketplaceIds=["ATVPDKIKX0DER"],
-        dataStartTime=start,
-        dataEndTime=end,
-    )
+    async with Reports(credentials=credentials) as report:
+        response = await report.create_report(
+            reportType=ReportType.GET_FBA_FULFILLMENT_REMOVAL_ORDER_DETAIL_DATA,
+            marketplaceIds=["ATVPDKIKX0DER"],
+            dataStartTime=start,
+            dataEndTime=end,
+        )
     return response
 
 
-def fba_inventory_data(days: int = 30):
+async def fba_inventory_data(days: int = 30):
 
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=min(days, 90))
 
-    response = report.create_report(
-        reportType=ReportType.GET_EXCESS_INVENTORY_DATA,
-        marketplaceIds=["ATVPDKIKX0DER"],
-        dataStartTime=start,
-        dataEndTime=end,
-    )
+    async with Reports(credentials=credentials) as report:
+        response = await report.create_report(
+            reportType=ReportType.GET_EXCESS_INVENTORY_DATA,
+            marketplaceIds=["ATVPDKIKX0DER"],
+            dataStartTime=start,
+            dataEndTime=end,
+        )
 
     return response
