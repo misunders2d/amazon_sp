@@ -19,6 +19,7 @@ from sp_api.base import (
 )
 
 from connection import bigquery, connect_to_bigquery, create_credentials
+from reports.report_types import brand_analytics_report
 from telegram_notifier import send_telegram_message
 
 from . import Reports, credentials
@@ -35,6 +36,7 @@ async def check_and_download_report(
     response: ApiResponse | None = None, report_id: str | None = None, timeout=5
 ):
     rate_limit = 0.0167
+    sleep_time = 5
     if all([response is None, report_id is None]):
         raise ValueError("Either a response or a report ID must be provided")
 
@@ -44,8 +46,8 @@ async def check_and_download_report(
         report_status = report_status_job.payload
 
         while report_status["processingStatus"] in ("IN_PROGRESS", "IN_QUEUE"):
-            print("Waiting for 10 seconds")
-            time.sleep(10)
+            print(f"Waiting for {sleep_time} seconds")
+            time.sleep(sleep_time)
             report_status_job = await report.get_report(reportId=report_id)
             report_status = report_status_job.payload
 
@@ -85,6 +87,15 @@ async def check_and_download_report(
             print(f"report status: {report_status['processingStatus']}")
             report_document = ""
         return report_document
+
+
+def chunk_asins(asins: str | list, chunk_size: int = 18) -> list:
+    asins_list = asins.split() if isinstance(asins, str) else asins
+    clean_asins = []
+    for chunk in range(0, len(asins_list), chunk_size):
+        asins_str = asins_list[chunk : chunk + chunk_size]
+        clean_asins.append(" ".join(asins_str))
+    return clean_asins
 
 
 async def fetch_reports(
@@ -219,23 +230,27 @@ def process_document(document):
 
 
 async def upload_ba_report(document):
+    document_specs = document.get("reportSpecification", "")
+    try:
+        unique_asins_job = check_if_ba_report_exists(document)
+        report_df = process_document(document)
 
-    unique_asins_job = check_if_ba_report_exists(document)
-    report_df = process_document(document)
+        unique_asins = await unique_asins_job
 
-    unique_asins = await unique_asins_job
-
-    report_to_upload = report_df.loc[report_df["asin"].isin(unique_asins)]
-    if len(report_to_upload) == 0:
-        print("[[RESULT]] All records are duplicates, skipping")
-    else:
-        print(f"[[RESULT]] Uploading {len(report_to_upload)} rows to bigquery")
-        pandas_gbq.to_gbq(
-            report_to_upload,
-            destination_table="mellanni-project-da.auxillary_development.sqp_asin_weekly",
-            credentials=credentials,
-            if_exists="append",
-        )
+        report_to_upload = report_df.loc[report_df["asin"].isin(unique_asins)]
+        if len(report_to_upload) == 0:
+            print("[[RESULT]] All records are duplicates, skipping")
+        else:
+            print(f"[[RESULT]] Uploading {len(report_to_upload)} rows to bigquery")
+            pandas_gbq.to_gbq(
+                report_to_upload,
+                destination_table="mellanni-project-da.auxillary_development.sqp_asin_weekly",
+                credentials=credentials,
+                if_exists="append",
+            )
+        return {"status": "success", "document": document_specs}
+    except Exception as e:
+        return {"status": "failed", "error": e, "document": document_specs}
 
 
 async def pull_multiple_documents(all_reports: list | None = None):
@@ -271,15 +286,23 @@ async def pull_multiple_documents(all_reports: list | None = None):
             print("Document already retrieved")
 
 
+def convert_date_to_isoformat(date_raw: str | datetime) -> str:
+    if isinstance(date_raw, datetime):
+        return date_raw.isoformat()
+    elif isinstance(date_raw, str):
+        date_clean = datetime.strptime(date_raw, "%Y-%m-%d")
+        return date_clean.isoformat()
+
+
 async def collect_sqp_reports(created_since, created_before):
     print(f"[[DATE: {created_since} to {created_before}]]")
     created_since = (
-        created_since.isoformat()
+        convert_date_to_isoformat(created_since)
         if isinstance(created_since, datetime)
         else created_since
     )
     created_before = (
-        created_before.isoformat()
+        convert_date_to_isoformat(created_before)
         if isinstance(created_before, datetime)
         else created_before
     )
@@ -305,6 +328,53 @@ async def collect_sqp_reports(created_since, created_before):
             created_since=created_since,
             created_before=created_before,
         )
+
+
+async def run_sqp_reports(
+    start_dates: list[str | datetime] | str, asins: list[str] | str
+):
+    """
+    Downloads SQP reports for a given selection of dates and for a given set of ASINs.
+    ASINs are chunked 18 at a time.
+    """
+    asins_list = chunk_asins(asins)
+    start_dates_clean = (
+        [convert_date_to_isoformat(d) for d in start_dates]
+        if isinstance(start_dates, list)
+        else [convert_date_to_isoformat(start_dates)]
+    )
+    ba_report_jobs = []
+    for week_start in start_dates_clean:
+        for asin_chunk in asins_list:
+            ba_report_jobs.append(
+                brand_analytics_report(
+                    week_start=week_start,
+                    report_type=ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT,
+                    asin=asin_chunk,
+                )
+            )
+
+    responses = []
+    for ba_report_job in ba_report_jobs:
+        responses.append(await ba_report_job)
+
+    document_jobs = []
+    for response in responses:
+        document_jobs.append(check_and_download_report(response=response))
+
+    report_documents = []
+    for document_job in document_jobs:
+        report_documents.append(await document_job)
+
+    ba_uploads = []
+    for report_document in report_documents:
+        ba_uploads.append(upload_ba_report(report_document))
+
+    results = []
+    for ba_upload in ba_uploads:
+        results.append(await ba_upload)
+    for result in results:
+        print(result)
 
 
 async def get_report_schedules():

@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -6,7 +7,12 @@ from dotenv import load_dotenv
 
 # from sp_api.api import CatalogItems, Reports
 from sp_api.asyncio.api import CatalogItems, Reports
-from sp_api.base import ApiResponse, ReportType
+from sp_api.base import (
+    ApiResponse,
+    ReportType,
+    SellingApiBadRequestException,
+    SellingApiRequestThrottledException,
+)
 
 load_dotenv()
 REFRESH_TOKEN_EU = os.environ["REFRESH_TOKEN_EU"]
@@ -60,18 +66,22 @@ async def all_orders_report(days=3) -> ApiResponse:
 
 
 async def brand_analytics_report(
-    week_start: datetime | None = None,
+    week_start: datetime | str | None = None,
     report_type: Literal[
         ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
         ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT,
     ] = ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
     asin: str | None = None,
+    timeout=round(1 / 0.0167, 1) + 1,
 ):
     """
     Creates a brand analytics report - search query performance or search catalog performance.
     """
+
     if not week_start:
         week_start = get_last_sunday(datetime.now())
+    if isinstance(week_start, str):
+        week_start = datetime.strptime(week_start.split("T")[0], "%Y-%m-%d")
     if not week_start.weekday() == 6:
         week_start = get_last_sunday(week_start, day_delta=0)
     report_options = {
@@ -81,12 +91,20 @@ async def brand_analytics_report(
         if not asin:
             raise BaseException("ASIN was not provided!")
         report_options["asin"] = asin
-    async with Reports(credentials=credentials) as report:
-        response = await report.create_report(
-            reportType=report_type,
-            reportOptions=report_options,
-            dataStartTime=str(week_start.date()),
-            dataEndTime=str(week_start.date() + timedelta(days=6)),
+
+    try:
+        async with Reports(credentials=credentials) as report:
+            response = await report.create_report(
+                reportType=report_type,
+                reportOptions=report_options,
+                dataStartTime=str(week_start.date()),
+                dataEndTime=str(week_start.date() + timedelta(days=6)),
+            )
+    except (SellingApiBadRequestException, SellingApiRequestThrottledException) as e:
+        print(f"Ran into rate limits, waiting for {timeout} seconds. {e}")
+        time.sleep(timeout)
+        response = await brand_analytics_report(
+            week_start=week_start, report_type=report_type, asin=asin
         )
 
     report_id = response.payload["reportId"]

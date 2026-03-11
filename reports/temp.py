@@ -1,4 +1,6 @@
 # import pickle
+import asyncio
+
 import pandas as pd
 import pandas_gbq
 
@@ -12,8 +14,8 @@ from .report_types import brand_analytics_report
 #     documents = pickle.load(f)
 documents = []
 
-response = brand_analytics_report()
-report_document = check_and_download_report(response)
+response = asyncio.run(brand_analytics_report())
+report_document = asyncio.run(check_and_download_report(response))
 if not report_document:
     raise BaseException("Report could not be downloaded.")
 documents.append(report_document)
