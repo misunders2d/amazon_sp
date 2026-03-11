@@ -1,14 +1,13 @@
+import asyncio
 import os
 import sys
 import time
 from typing import List, Literal
 
 from dotenv import load_dotenv
-from sp_api.api import ListingsItems
+from sp_api.asyncio.api import ListingsItems
 
-import telegram_notifier
-from image_links import product_details
-from telegram_notifier import send_telegram_message
+from sp_utils import send_telegram_message
 
 load_dotenv()
 MARKETPLACE_IDS = ["ATVPDKIKX0DER", "A2EUQ1WTGCTBG2"]
@@ -23,7 +22,32 @@ credentials = dict(
 listings_client = ListingsItems(credentials=credentials)
 
 
-def get_listing_details(
+product_details = [
+    {
+        "skus": [
+            "BedSheetSet-King-Light-Gray-FBA",
+            "M-BEDSHEETSET-K-LIGHT-GRAY-PAK",
+            "M-BEDSHEETSET-K-LIGHT-GRAY-CMB",
+        ],
+        "MORNING_IMAGE": "https://ik.imagekit.io/jgp5dmcfb/Day-night/morning.png",
+        "EVENING_IMAGE": "https://ik.imagekit.io/jgp5dmcfb/Day-night/evening.png",
+        "STANDARD_IMAGE": "https://ik.imagekit.io/jgp5dmcfb/New_Iconic_Sheets_Set/1._Iconic_Sheet_Set_4pc_Light_Gray_Stack_2.jpg",
+    },
+    {
+        "skus": [
+            "BedSheetSet-Full-Light-Gray-FBA",
+            "M-BEDSHEETSET-F-LIGHT-GRAY-CMB",
+            "M-BEDSHEETSET-F-LIGHT-GRAY-PAK",
+            "M-BED-SHEET-SET-F-LIGHT-GRAY-CA",
+        ],
+        "MORNING_IMAGE": "https://ik.imagekit.io/jgp5dmcfb/Day-night/4pc_Light_Gray_Daytime1.png",
+        "EVENING_IMAGE": "https://ik.imagekit.io/jgp5dmcfb/Day-night/4pc_Light_Gray_Night1.jpeg",
+        "STANDARD_IMAGE": "https://ik.imagekit.io/jgp5dmcfb/New_Iconic_Sheets_Set/1._Iconic_Sheet_Set_4pc_Light_Gray_Stack_2.jpg",
+    },
+]
+
+
+async def get_listing_details(
     sku: str,
     include: List[
         Literal[
@@ -39,13 +63,13 @@ def get_listing_details(
     ],
 ):
 
-    response = listings_client.get_listings_item(
+    response = await listings_client.get_listings_item(
         sellerId=SELLER_ID, sku=sku, includedData=include
     )
     return response
 
 
-def update_image(
+async def update_image(
     sku,
     product_type,
     image_path,
@@ -75,14 +99,14 @@ def update_image(
         ],
     }
     try:
-        response = listings_client.patch_listings_item(
+        response = await listings_client.patch_listings_item(
             sellerId=SELLER_ID, sku=sku, marketplaceIds=MARKETPLACE_IDS, body=patch_body
         )
-        telegram_notifier.send_telegram_message(
+        await send_telegram_message(
             f"Image updated for {sku} with status {response.payload['status']}\nImage: {image_path}\n\n"
         )
     except Exception as e:
-        telegram_notifier.send_telegram_message(f"FAILED to update image for {sku}:\n{e}")
+        await send_telegram_message(f"FAILED to update image for {sku}:\n{e}")
         return e
 
 
@@ -90,13 +114,15 @@ def batch_delete_image(
     SKUS,
     product_type,
     image_path,
-    op="delete",
-    attribute_path="other_product_image_locator_8",
+    op: Literal["replace", "delete"] = "delete",
+    attribute_path: Literal[
+        "other_product_image_locator_8"
+    ] = "other_product_image_locator_8",
 ):
     failed_images = {}
     for sku in SKUS:
         result = update_image(
-            sku, product_type, image_path, op="delete", attribute_path=attribute_path
+            sku, product_type, image_path, op=op, attribute_path=attribute_path
         )
         time.sleep(1 / 5)
         if result:
@@ -104,9 +130,9 @@ def batch_delete_image(
     return failed_images
 
 
-if __name__ == "__main__":
+async def main():
     args = sys.argv[1:]
-    send_telegram_message(f"Starting cron job with argument {sys.argv[1:]}")
+    await send_telegram_message(f"Starting cron job with argument {sys.argv[1:]}")
 
     for product in product_details:
         SKUS = product["skus"]
@@ -115,9 +141,14 @@ if __name__ == "__main__":
             image = product["MORNING_IMAGE"]
         elif len(args) > 0 and args[0] == "2":
             image = product["EVENING_IMAGE"]
-        product_type = get_listing_details(
+        product_type_job = await get_listing_details(
             sku=SKUS[0], include=["summaries", "productTypes"]
-        ).payload["summaries"][0]["productType"]
+        )
+        product_type = product_type_job.payload["summaries"][0]["productType"]
         for sku in SKUS:
-            update_image(sku, product_type=product_type, image_path=image)
+            await update_image(sku, product_type=product_type, image_path=image)
             time.sleep(0.5)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

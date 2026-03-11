@@ -5,5 +5,5 @@ pandas
 pandas-gbq
 python-amazon-sp-api
 python-dotenv
-requests
-httpx<0.28
+# httpx<0.28
+httpx

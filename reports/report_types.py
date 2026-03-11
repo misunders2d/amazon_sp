@@ -117,8 +117,6 @@ async def brand_analytics_report(
         response_obj["payload"], ApiResponse
     ):
         response = response_obj["payload"]
-        report_id = response.payload["reportId"]
-        print(f"report id: {report_id}")
         return response
     else:
         return ApiResponse(errors=response_obj["payload"])

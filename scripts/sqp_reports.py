@@ -8,8 +8,7 @@ import pandas_gbq
 from connection import bigquery, connect_to_bigquery, create_credentials
 from reports.process_reports import check_and_download_report, fetch_reports
 from reports.report_types import ReportType, brand_analytics_report
-from sp_utils.sp_utils import chunk_asins, convert_date_to_isoformat
-from telegram_notifier import send_telegram_message
+from sp_utils import chunk_asins, convert_date_to_isoformat, send_telegram_message
 
 logging.basicConfig(
     filename="sqp_log.log",
@@ -215,8 +214,10 @@ if __name__ == "__main__":
     created_before = datetime.now() + timedelta(days=1)
     threshold = created_before - timedelta(days=4)
     created_since = created_before - timedelta(days=2)
-    send_telegram_message(
-        message=f"Starting SQP reports update for {created_since.date()} - {created_before.date()}"
+    asyncio.run(
+        send_telegram_message(
+            message=f"Starting SQP reports update for {created_since.date()} - {created_before.date()}"
+        )
     )
     while created_since > threshold:
         asyncio.run(

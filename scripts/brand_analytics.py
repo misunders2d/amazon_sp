@@ -5,9 +5,8 @@ import pandas as pd
 import pandas_gbq
 
 import connection
-
-from .process_reports import check_and_download_report
-from .report_types import brand_analytics_report
+from reports.process_reports import check_and_download_report
+from reports.report_types import brand_analytics_report
 
 # file_path = "/home/misunderstood/Downloads/documents.pkl"
 # with open(file_path, 'rb') as f:
