@@ -1,14 +1,13 @@
-from datetime import datetime, timedelta
-from sp_api.base import ReportType, ApiResponse
-from sp_api.api import CatalogItems
-import requests
-
 import os
+
+import requests
 from dotenv import load_dotenv
+from sp_api.asyncio.api import CatalogItems
+
+from authentication import get_access_token
 
 load_dotenv()
 
-from authentication import get_access_token
 
 REFRESH_TOKEN_EU = os.environ["REFRESH_TOKEN_EU"]
 REFRESH_TOKEN_US = os.environ["REFRESH_TOKEN_US"]
@@ -56,3 +55,21 @@ query_params = {
 response = requests.get(url, headers=headers, params=query_params)
 
 print(response.text)
+
+
+async def get_asin_data(asin):
+    catalog_items = CatalogItems(credentials=credentials)
+
+    response = await catalog_items.get_catalog_item(
+        asin=asin,
+        marketplaceIds=["ATVPDKIKX0DER"],
+        includedData=[
+            "images",
+            "attributes",
+            "summaries",
+            "identifiers",
+            # "classifications"#,"dimensions",,
+            # "images","productTypes","salesRanks","relationships"#,"vendorDetails"
+        ],
+    )
+    return response

@@ -1,6 +1,8 @@
 import os
+
 import requests
 from dotenv import load_dotenv
+from sp_api.asyncio.api import Reports
 
 load_dotenv()
 
@@ -46,3 +48,7 @@ def get_access_token():
         print(f"Error exchanging refresh token for LWA Access Token: {e}")
         if hasattr(e, "response") and e.response is not None:
             print(f"LWA Response error: {e.response.text}")
+
+
+def get_reports_class():
+    return Reports(credentials=credentials)

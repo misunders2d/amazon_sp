@@ -1,16 +1,9 @@
 import asyncio
 import json
 import logging
-import os
-import pickle
-import time
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
 from json import JSONDecodeError
 from typing import List, Literal
 
-import pandas as pd
-import pandas_gbq
 from sp_api.base import (
     ApiResponse,
     ReportType,
@@ -18,11 +11,7 @@ from sp_api.base import (
     SellingApiRequestThrottledException,
 )
 
-from connection import bigquery, connect_to_bigquery, create_credentials
-from reports.report_types import brand_analytics_report
-from telegram_notifier import send_telegram_message
-
-from . import Reports, credentials
+from base.authentication import get_reports_class
 
 logging.basicConfig(
     filename="sqp_log.log",
@@ -32,378 +21,175 @@ logging.basicConfig(
 )
 
 
-async def check_and_download_report(
-    response: ApiResponse | None = None, report_id: str | None = None, timeout=5
-):
-    rate_limit = 0.0167
-    sleep_time = 5
-    if all([response is None, report_id is None]):
-        raise ValueError("Either a response or a report ID must be provided")
+async def _poll_until_done(report_id: str, sleep_time=5) -> dict:
+    """
+    Check report status until the report is fully resolved - either Done, or failed
+    Args:
+        report_id(str): the id of the report to check
+        sleep_time(int): Optional. The time in seconds to wait between polls
 
-    report_id = response.payload["reportId"] if response is not None else report_id
-    async with Reports(credentials=credentials) as report:
-        report_status_job = await report.get_report(reportId=report_id)
-        report_status = report_status_job.payload
+    Returns:
+        report_status(dict): The dict containing the status of the report,
+        document id, report creation time etc
+    """
+    async with get_reports_class() as report:
+        status_job = await report.get_report(reportId=report_id)
+        report_status = status_job.payload
 
-        while report_status["processingStatus"] in ("IN_PROGRESS", "IN_QUEUE"):
+        while report_status.get("processingStatus") in ("IN_PROGRESS", "IN_QUEUE"):
             print(f"Waiting for {sleep_time} seconds")
-            time.sleep(sleep_time)
-            report_status_job = await report.get_report(reportId=report_id)
-            report_status = report_status_job.payload
-
+            await asyncio.sleep(sleep_time)
+            status_job = await report.get_report(reportId=report_id)
+            report_status = status_job.payload
             print(f"report status: {report_status['processingStatus']}")
 
-        if report_status["processingStatus"] == "DONE":
-            try:
+    return report_status
+
+
+async def _download_document(
+    report_document_id: str, timeout=2, max_retries=3
+) -> str | dict:
+    """
+    Downloads the document from the generated Amazon report.
+    Args:
+        report_document_id(str): an id of the document (i.e. "amzn1.spdoc.1.4.na.ec5333cc-a174-4510-9bfb-3aebf0fec4fe.T18BMIED8ZJ38Q.230 00")
+        timeout(int): number of seconds between attempts.
+        max_retries(int): number of attempts to redownload if hitting rate limits.
+
+    Returns:
+        document(dict | str): the contents of the document in json or str format if successful or an empty string if failed.
+    """
+    backoff = int(1 / 0.0167) + 2
+    for attempt in range(1, max_retries + 1):
+        try:
+            async with get_reports_class() as report:
                 report_document_obj = await report.get_report_document(
-                    reportDocumentId=report_status["reportDocumentId"],
+                    reportDocumentId=report_document_id,
                     download=True,
                     timeout=timeout,
                 )
-                try:
-                    report_document = json.loads(
-                        report_document_obj.payload["document"]
-                    )
-                except JSONDecodeError:
-                    report_document = report_document_obj.payload["document"]
-            except SellingApiRequestThrottledException:
-                print(f"Hit rate limits, sleeping for {int(1/rate_limit)+2} seconds")
-                time.sleep(int(1 / rate_limit) + 2)
-                report_document = await check_and_download_report(
-                    report_id=report_id, timeout=int(1 / rate_limit) + 2
-                )
+            try:
+                return json.loads(report_document_obj.payload["document"])
+            except JSONDecodeError:
+                return report_document_obj.payload["document"]
+        except SellingApiRequestThrottledException:
+            print(
+                f"Hit rate limits (attempt {attempt}/{max_retries}), sleeping for {backoff}s"
+            )
+        except Exception as e:
+            print(f"Unknown error on attempt {attempt}/{max_retries}: {e}")
+        if attempt < max_retries:
+            await asyncio.sleep(backoff)
 
-            except Exception as e:
-                print(
-                    f"Unknown error occurred, cooling down and retrying.\n Error: {e}"
-                )
-                time.sleep(int(1 / rate_limit) + 2)
-                report_document = await check_and_download_report(
-                    report_id=report_id, timeout=int(1 / rate_limit) + 2
-                )
-
-            print(f"document id: {report_status['reportDocumentId']}")
-        else:
-            print(f"report status: {report_status['processingStatus']}")
-            report_document = ""
-        return report_document
+    print(
+        f"Failed to download document {report_document_id} after {max_retries} attempts"
+    )
+    return ""
 
 
-def chunk_asins(asins: str | list, chunk_size: int = 18) -> list:
-    asins_list = asins.split() if isinstance(asins, str) else asins
-    clean_asins = []
-    for chunk in range(0, len(asins_list), chunk_size):
-        asins_str = asins_list[chunk : chunk + chunk_size]
-        clean_asins.append(" ".join(asins_str))
-    return clean_asins
+async def check_and_download_report(
+    response: ApiResponse | None = None, report_id: str | None = None, timeout=5
+) -> str | dict:
+    """
+    Checks and downloads the report from a generated report response.
+
+    Args:
+        response(ApiResponse): Optional. Response from the `create_report` function.
+        report_id(str): Optional. Actual report id.
+        Must provide either response or report_id (or both)
+        timeout(int): Optional. Timeout in seconds
+    """
+    report_id = response.payload["reportId"] if response is not None else report_id
+    if all([response is None, report_id is None]) or not report_id:
+        raise ValueError("Either a response or a report ID must be provided")
+
+    report_status = await _poll_until_done(report_id)
+
+    if report_status["processingStatus"] != "DONE":
+        print(f"report status: {report_status['processingStatus']}")
+        return ""
+
+    print(f"document id: {report_status['reportDocumentId']}")
+    return await _download_document(report_status["reportDocumentId"], timeout=timeout)
 
 
-async def fetch_reports(
-    report_types: list = [
+async def _fetch_first_page(
+    report_types: list[ReportType] = [
         ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT
     ],
     processing_statuses: List[
         Literal["CANCELLED", "DONE", "FATAL", "IN_PROGRESS", "IN_QUEUE"]
-    ] = [],
+    ] = ["DONE"],
     created_since=None,
     created_before=None,
+    sleep_time=round(1 / 0.0222, 0) + 1,
+    max_retries=3,
+) -> ApiResponse:
+    for attempt in range(1, max_retries + 1):
+        async with get_reports_class() as report:
+            try:
+                r = await report.get_reports(
+                    reportTypes=report_types,
+                    processingStatuses=processing_statuses,
+                    createdSince=created_since,
+                    createdUntil=created_before,
+                    pageSize=100,
+                )
+                return r
+            except SellingApiRequestThrottledException as e:
+                print(
+                    f"Ran into rate limits on {attempt} attempt, retrying after {sleep_time} seconds:\n{e}"
+                )
+            except Exception as e:
+                return ApiResponse(errors=e)
+            if attempt < max_retries:
+                await asyncio.sleep(sleep_time)
+    return ApiResponse(
+        errors=f"Could not retrieve list of reports with {max_retries} attempts"
+    )
+
+
+async def fetch_reports(
+    report_types: list[ReportType] = [
+        ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT
+    ],
+    processing_statuses: List[
+        Literal["CANCELLED", "DONE", "FATAL", "IN_PROGRESS", "IN_QUEUE"]
+    ] = ["DONE"],
+    created_since=None,
+    created_before=None,
+    sleep_time=round(1 / 0.0222, 0) + 1,
+    max_retries=3,
 ):
     """
     Queries Amazon for already created report for the time period.
     """
-    sleep_time = round(1 / 0.0222, 2) + 1
     all_reports = []
-    async with Reports(credentials=credentials) as report:
-        r = await report.get_reports(
-            reportTypes=report_types,
-            processingStatuses=processing_statuses,
-            createdSince=created_since,
-            createdUntil=created_before,
-            pageSize=100,
-        )
-    all_reports.extend(r.payload["reports"])
-    next_token = r.next_token
-    page = 2
-    while next_token:
-        print(
-            f"Pulling next page ({page}), sleeping for {sleep_time} seconds. Currently {len(all_reports)} reports colected"
-        )
-        time.sleep(sleep_time)
-        try:
-            async with Reports(credentials=credentials) as report:
-                r = await report.get_reports(nextToken=next_token)
-                all_reports.extend(r.payload["reports"])
-                next_token = r.next_token
-                page += 1
-        except (SellingApiBadRequestException, SellingApiRequestThrottledException):
-            print(f"Ran out of limits, waiting for {sleep_time} seconds")
-            time.sleep(sleep_time)
-        except Exception as e:
-            print(f"Unknown error: {e}")
+    first_page = await _fetch_first_page(
+        report_types=report_types,
+        processing_statuses=processing_statuses,
+        created_since=created_since,
+        created_before=created_before,
+    )
+    if not first_page.errors:
+        all_reports.extend(first_page.payload["reports"])
+        next_token = first_page.next_token
+        page = 2
+        while next_token:
+            print(
+                f"Pulling next page ({page}). Currently {len(all_reports)} reports colected"
+            )
+            try:
+                async with get_reports_class() as report:
+                    r = await report.get_reports(nextToken=next_token)
+                    all_reports.extend(r.payload["reports"])
+                    next_token = r.next_token
+                    page += 1
+            except SellingApiRequestThrottledException:
+                print(f"Ran out of rate limits, waiting for {sleep_time} seconds")
+                await asyncio.sleep(sleep_time)
+            except SellingApiBadRequestException as e:
+                print(f"Ran into an api exception: {e}")
+            except Exception as e:
+                print(f"Unknown error: {e}")
     return all_reports
-
-
-async def check_if_ba_report_exists(document):
-    asins = document["reportSpecification"].get("reportOptions", {}).get("asin")
-    print("Checking asins: ")
-    print(asins)
-    asins = [x.strip() for x in asins.split()]
-    start_date = datetime.strptime(
-        document["reportSpecification"].get("dataStartTime"), "%Y-%m-%d"
-    ).date()
-    period = (
-        document["reportSpecification"].get("reportOptions", {}).get("reportPeriod")
-    )
-
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ArrayQueryParameter("asins", "STRING", asins),
-            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
-            bigquery.ScalarQueryParameter("period", "STRING", period),
-        ]
-    )
-    query = """
-    SELECT DISTINCT asin
-    FROM `mellanni-project-da.auxillary_development.sqp_asin_weekly`
-    WHERE DATE(startDate) = @start_date
-      AND period = @period
-      AND asin IN UNNEST(@asins)
-      """
-
-    with connect_to_bigquery() as client:
-        bq_result = client.query(query, job_config=job_config)
-    duplicate_asins = {x.asin for x in bq_result}
-    unique_asins = [x for x in asins if x not in duplicate_asins]
-    if duplicate_asins:
-        print(
-            f"[[DUPLICATES]] {len(duplicate_asins)} duplicate asins found for {start_date} {period}: ",
-            ", ".join(duplicate_asins),
-        )
-    if unique_asins:
-        print(
-            f"[[UNIQUE]] {len(unique_asins)} unique asins found for {start_date} {period}: ",
-            ", ".join(unique_asins),
-        )
-    return unique_asins
-
-
-def process_document(document):
-    result = pd.DataFrame()
-    columns = dict()
-
-    def process_row(row, prefix=None):
-        for key, value in row.items():
-            if isinstance(value, dict):
-                process_row(value, prefix=key)
-            else:
-                key = f"{prefix}_{key}" if prefix else key
-                columns[key] = value
-        return columns
-
-    for row in document["dataByAsin"]:
-        columns = process_row(row)
-        result = pd.concat(
-            [
-                result,
-                pd.DataFrame(data=[columns.values()], columns=pd.Index(columns.keys())),
-            ]
-        )
-    period = (
-        document["reportSpecification"].get("reportOptions", {}).get("reportPeriod")
-    )
-    asins = document["reportSpecification"].get("reportOptions", {}).get("asin")
-    asins = [x.strip() for x in asins.split()]
-
-    start_date = datetime.strptime(
-        document["reportSpecification"].get("dataStartTime"), "%Y-%m-%d"
-    ).date()
-    marketplaces = document["reportSpecification"].get("marketplaceIds", [])
-
-    if len(document["dataByAsin"]) == 0:
-
-        result["asin"] = asins
-        result["startDate"] = start_date
-
-    result["period"] = period
-    result["marketplaces"] = ", ".join(sorted(marketplaces))
-    return result
-
-
-async def upload_ba_report(document):
-    document_specs = document.get("reportSpecification", "")
-    try:
-        unique_asins_job = check_if_ba_report_exists(document)
-        report_df = process_document(document)
-
-        unique_asins = await unique_asins_job
-
-        report_to_upload = report_df.loc[report_df["asin"].isin(unique_asins)]
-        if len(report_to_upload) == 0:
-            print("[[RESULT]] All records are duplicates, skipping")
-        else:
-            print(f"[[RESULT]] Uploading {len(report_to_upload)} rows to bigquery")
-            pandas_gbq.to_gbq(
-                report_to_upload,
-                destination_table="mellanni-project-da.auxillary_development.sqp_asin_weekly",
-                credentials=credentials,
-                if_exists="append",
-            )
-        return {"status": "success", "document": document_specs}
-    except Exception as e:
-        return {"status": "failed", "error": e, "document": document_specs}
-
-
-async def pull_multiple_documents(all_reports: list | None = None):
-    pkl_file = "/home/misunderstood/Downloads/documents.pkl"
-    if not all_reports:
-        all_reports = await fetch_reports(processing_statuses=[])
-    print(len(all_reports))
-
-    all_reports = [x for x in all_reports if x["processingStatus"] != "FATAL"]
-
-    def pickle_dump(obj):
-        with open(pkl_file, "wb") as f:
-            pickle.dump(obj, f)
-
-    if not os.path.isfile(pkl_file):
-        all_documents = {}
-    else:
-        with open(pkl_file, "rb") as f:
-            all_documents = pickle.load(f)
-
-    for report_obj in all_reports[::-1]:
-        if report_obj["reportId"] not in all_documents:
-            document = await check_and_download_report(report_id=report_obj["reportId"])
-            all_documents[report_obj["reportId"]] = document
-            pickle_dump(all_documents)
-            print(f"{len(all_documents)} retrieved")
-            # time.sleep(1 / 0.0167)
-            await upload_ba_report(document)
-            print("Cancel the job now if you want to stop")
-            time.sleep(2)
-
-        else:
-            print("Document already retrieved")
-
-
-def convert_date_to_isoformat(date_raw: str | datetime) -> str:
-    if isinstance(date_raw, datetime):
-        return date_raw.isoformat()
-    elif isinstance(date_raw, str):
-        date_clean = datetime.strptime(date_raw, "%Y-%m-%d")
-        return date_clean.isoformat()
-
-
-async def collect_sqp_reports(created_since, created_before):
-    print(f"[[DATE: {created_since} to {created_before}]]")
-    created_since = (
-        convert_date_to_isoformat(created_since)
-        if isinstance(created_since, datetime)
-        else created_since
-    )
-    created_before = (
-        convert_date_to_isoformat(created_before)
-        if isinstance(created_before, datetime)
-        else created_before
-    )
-
-    try:
-        all_reports = await fetch_reports(
-            report_types=[
-                ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT
-            ],
-            processing_statuses=["DONE"],
-            created_since=created_since,
-            created_before=created_before,
-        )
-        for i, report_record in enumerate(all_reports, start=1):
-            document = await check_and_download_report(
-                report_id=report_record["reportId"]
-            )
-            _ = await upload_ba_report(document=document)
-            print(f"Uploaded {i} reports of {len(all_reports)}", end="\n\n")
-    except Exception as e:
-        print(f"[[ERROR for {str(e)}]]: {e}\nRetrying...")
-        await collect_sqp_reports(
-            created_since=created_since,
-            created_before=created_before,
-        )
-
-
-async def run_sqp_reports(
-    start_dates: list[str | datetime] | str, asins: list[str] | str
-):
-    """
-    Downloads SQP reports for a given selection of dates and for a given set of ASINs.
-    ASINs are chunked 18 at a time.
-    """
-    asins_list = chunk_asins(asins)
-    start_dates_clean = (
-        [convert_date_to_isoformat(d) for d in start_dates]
-        if isinstance(start_dates, list)
-        else [convert_date_to_isoformat(start_dates)]
-    )
-    ba_report_jobs = []
-    for week_start in start_dates_clean:
-        for asin_chunk in asins_list:
-            ba_report_jobs.append(
-                brand_analytics_report(
-                    week_start=week_start,
-                    report_type=ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT,
-                    asin=asin_chunk,
-                )
-            )
-
-    responses = []
-    for ba_report_job in ba_report_jobs:
-        responses.append(await ba_report_job)
-
-    document_jobs = []
-    for response in responses:
-        document_jobs.append(check_and_download_report(response=response))
-
-    report_documents = []
-    for document_job in document_jobs:
-        report_documents.append(await document_job)
-
-    ba_uploads = []
-    for report_document in report_documents:
-        ba_uploads.append(upload_ba_report(report_document))
-
-    results = []
-    for ba_upload in ba_uploads:
-        results.append(await ba_upload)
-    for result in results:
-        print(result)
-
-
-async def get_report_schedules():
-    async with Reports(credentials=credentials) as report:
-        r = await report.get_report_schedules(
-            reportTypes=[
-                ReportType.GET_BRAND_ANALYTICS_SEARCH_QUERY_PERFORMANCE_REPORT,
-                ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT,
-            ]
-        )
-    return r.payload
-
-
-if __name__ == "__main__":
-    created_before = datetime.now() + timedelta(days=1)
-    threshold = created_before - timedelta(days=4)
-    created_since = created_before - timedelta(days=2)
-    send_telegram_message(
-        message=f"Starting SQP reports update for {created_since.date()} - {created_before.date()}"
-    )
-    while created_since > threshold:
-        asyncio.run(
-            collect_sqp_reports(
-                created_since=created_since,
-                created_before=created_before,
-            )
-        )
-        logging.debug(
-            msg=f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n"
-        )
-        print(f"[[REPORT]]: pushed data for {created_since} day\n[[END OF REPORT]]\n")
-        created_before, created_since = created_since, created_since - timedelta(days=1)
