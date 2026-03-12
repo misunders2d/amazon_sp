@@ -1,3 +1,6 @@
+httpx
+openpyxl
+pandas
+pandas-gbq
 python-amazon-sp-api
 python-dotenv
-requests
