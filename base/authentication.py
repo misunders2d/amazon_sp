@@ -6,13 +6,19 @@ from sp_api.asyncio.api import ListingsItems, Reports
 
 load_dotenv()
 
-REFRESH_TOKEN_EU = os.environ["REFRESH_TOKEN_EU"]
-REFRESH_TOKEN_US = os.environ["REFRESH_TOKEN_US"]
-
+REFRESH_TOKEN_EU = os.environ.get("AMZ_REFRESH_TOKEN_EU", "") or os.environ.get(
+    "REFRESH_TOKEN_EU", ""
+)
+REFRESH_TOKEN_US = os.environ.get("AMZ_REFRESH_TOKEN_US", "") or os.environ.get(
+    "REFRESH_TOKEN_US", ""
+)
+if not REFRESH_TOKEN_US:
+    raise BaseException("Could not find AMZ refresh token")
 credentials = dict(
     refresh_token=REFRESH_TOKEN_US,
-    lwa_app_id=os.environ["CLIENT_ID"],
-    lwa_client_secret=os.environ["CLIENT_SECRET"],
+    lwa_app_id=os.environ.get("AMZ_CLIENT_ID", "") or os.environ.get("CLIENT_ID", ""),
+    lwa_client_secret=os.environ.get("AMZ_CLIENT_SECRET", "")
+    or os.environ.get("CLIENT_SECRET", ""),
 )
 
 
