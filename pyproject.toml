@@ -18,6 +18,10 @@ dependencies = [
     "requests>=2.32.5",
 ]
 
+[tool.setuptools]
+packages = ["base", "reports", "sp_utils"]
+py-modules = ["connection"]
+
 [dependency-groups]
 dev = [
     "ipython>=9.10.0",
