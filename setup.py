@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="amazon sp api modules",  # Name of your package
-    version="0.1.1",  # Version number
+    version="0.1.2",  # Version number
     description="modules for Amazon SP API interactions",
     author="Sergey",
     author_email="2djohar@gmail.com",

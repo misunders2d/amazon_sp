@@ -2,7 +2,7 @@ import os
 
 import requests
 from dotenv import load_dotenv
-from sp_api.asyncio.api import Reports
+from sp_api.asyncio.api import ListingsItems, Reports
 
 load_dotenv()
 
@@ -52,3 +52,7 @@ def get_access_token():
 
 def get_reports_class():
     return Reports(credentials=credentials)
+
+
+def get_listings_class():
+    return ListingsItems(credentials=credentials)
