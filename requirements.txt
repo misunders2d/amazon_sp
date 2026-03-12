@@ -1,9 +1,6 @@
-google-cloud-bigquery
-google-auth
+httpx
 openpyxl
 pandas
 pandas-gbq
 python-amazon-sp-api
 python-dotenv
-# httpx<0.28
-httpx

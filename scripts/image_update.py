@@ -21,6 +21,18 @@ credentials = dict(
 
 listings_client = ListingsItems(credentials=credentials)
 
+image_attribute_paths = Literal[
+    "main_product_image_locator",
+    "other_product_image_locator_1",
+    "other_product_image_locator_2",
+    "other_product_image_locator_3",
+    "other_product_image_locator_4",
+    "other_product_image_locator_5",
+    "other_product_image_locator_6",
+    "other_product_image_locator_7",
+    "other_product_image_locator_8",
+    "swatch_product_image_locator",
+]
 
 product_details = [
     {
@@ -74,18 +86,7 @@ async def update_image(
     product_type,
     image_path,
     op: Literal["replace", "delete"] = "replace",
-    attribute_path: Literal[
-        "main_product_image_locator",
-        "other_product_image_locator_1",
-        "other_product_image_locator_2",
-        "other_product_image_locator_3",
-        "other_product_image_locator_4",
-        "other_product_image_locator_5",
-        "other_product_image_locator_6",
-        "other_product_image_locator_7",
-        "other_product_image_locator_8",
-        "swatch_product_image_locator",
-    ] = "main_product_image_locator",
+    attribute_path: Literal[image_attribute_paths] = "main_product_image_locator",
 ):
 
     patch_body = {
@@ -115,9 +116,7 @@ def batch_delete_image(
     product_type,
     image_path,
     op: Literal["replace", "delete"] = "delete",
-    attribute_path: Literal[
-        "other_product_image_locator_8"
-    ] = "other_product_image_locator_8",
+    attribute_path: Literal[image_attribute_paths] = "other_product_image_locator_8",
 ):
     failed_images = {}
     for sku in SKUS:

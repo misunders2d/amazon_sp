@@ -159,7 +159,6 @@ async def fetch_reports(
     created_since=None,
     created_before=None,
     sleep_time=round(1 / 0.0222, 0) + 1,
-    max_retries=3,
 ):
     """
     Queries Amazon for already created report for the time period.
