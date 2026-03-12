@@ -7,6 +7,13 @@ setup(
     author="Sergey",
     author_email="2djohar@gmail.com",
     packages=find_packages(),  # Automatically find all packages
-    install_requires=[],
+    install_requires=[
+        "httpx",
+        "openpyxl",
+        "pandas",
+        "pandas-gbq",
+        "python-amazon-sp-api",
+        "python-dotenv",
+    ],
     python_requires=">=3.6",  # Specify compatible Python versions
 )
