@@ -1,1 +1,1 @@
-from .authentication import get_reports_class
+from .authentication import get_listings_class, get_reports_class
