@@ -5,6 +5,12 @@ from functools import wraps
 
 from sp_api.base import SellingApiRequestThrottledException
 
+SP_API_RATE_LIMITS = {
+    "get_report": {"max_rate": 2, "burst_rate": 15},
+    "get_report_document": {"max_rate": 0.0167, "burst_rate": 15},
+    "get_reports": {"max_rate": 0.0222, "burst_rate": 10},
+}
+
 
 def rate_limit(
     max_rate: float, burst_rate: int, time_period: float = 1, max_retries: int = 5

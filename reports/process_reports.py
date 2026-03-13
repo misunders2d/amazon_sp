@@ -4,15 +4,10 @@ import logging
 from json import JSONDecodeError
 from typing import List, Literal
 
-from sp_api.base import (
-    ApiResponse,
-    ReportType,
-    SellingApiBadRequestException,
-    SellingApiRequestThrottledException,
-)
+from sp_api.base import ApiResponse, ReportType
 
 from base.authentication import get_reports_class
-from base.rate_limits import rate_limit
+from base.rate_limits import SP_API_RATE_LIMITS, rate_limit
 
 logging.basicConfig(
     filename="sqp_log.log",
@@ -22,7 +17,7 @@ logging.basicConfig(
 )
 
 
-@rate_limit(max_rate=2, burst_rate=15)
+@rate_limit(**SP_API_RATE_LIMITS["get_report"])
 async def _poll_until_done(report_id: str, sleep_time=5) -> dict:
     """
     Check report status until the report is fully resolved - either Done, or failed
@@ -48,7 +43,7 @@ async def _poll_until_done(report_id: str, sleep_time=5) -> dict:
     return report_status
 
 
-@rate_limit(max_rate=0.0167, burst_rate=15)
+@rate_limit(**SP_API_RATE_LIMITS["get_report_document"])
 async def _download_document(report_document_id: str) -> str | dict:
     """
     Downloads the document from the generated Amazon report.
@@ -98,7 +93,7 @@ async def check_and_download_report(
     return await _download_document(report_status["reportDocumentId"])
 
 
-@rate_limit(max_rate=0.0222, burst_rate=10)
+@rate_limit(**SP_API_RATE_LIMITS["get_reports"])
 async def _fetch_first_page(
     report_types: list[ReportType] = [
         ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT
@@ -119,7 +114,7 @@ async def _fetch_first_page(
         )
 
 
-@rate_limit(max_rate=0.0222, burst_rate=10)
+@rate_limit(**SP_API_RATE_LIMITS["get_reports"])
 async def fetch_reports(
     report_types: list[ReportType] = [
         ReportType.GET_BRAND_ANALYTICS_SEARCH_CATALOG_PERFORMANCE_REPORT
