@@ -50,6 +50,9 @@ def rate_limit(
                         break
 
                     wait = (1 - tokens) / refill_rate
+                    print(
+                        f"??? Tokens depleted on {func.__name__}. Waiting for {wait:.2f} s"
+                    )
 
                 await asyncio.sleep(wait)
 
@@ -61,9 +64,11 @@ def rate_limit(
                 try:
                     return await func(*args, **kwargs)
                 except SellingApiRequestThrottledException as e:
+                    tokens = 0
                     last_exc = e
                     retries += 1
                     wait = (2**retries) + random.uniform(0, 1)
+                    # wait = (1 / refill_rate) + random.uniform(0, 1)
                     print(
                         f"!!! Amazon Throttled Exception on {func.__name__}. Backing off {wait:.2f}s (attempt {retries})"
                     )
