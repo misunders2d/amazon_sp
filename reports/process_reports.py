@@ -29,16 +29,22 @@ async def _poll_until_done(report_id: str, sleep_time=5) -> dict:
         report_status(dict): The dict containing the status of the report,
         document id, report creation time etc
     """
+    max_retries = 60 // sleep_time
     async with get_reports_class() as report:
         status_job = await report.get_report(reportId=report_id)
         report_status = status_job.payload
 
-        while report_status.get("processingStatus") in ("IN_PROGRESS", "IN_QUEUE"):
+        attempt = 0
+        while (
+            report_status.get("processingStatus") in ("IN_PROGRESS", "IN_QUEUE")
+            and attempt < max_retries
+        ):
             print(f"Waiting for {sleep_time} seconds")
             await asyncio.sleep(sleep_time)
             status_job = await report.get_report(reportId=report_id)
             report_status = status_job.payload
             print(f"report status: {report_status['processingStatus']}")
+            attempt += 1
 
     return report_status
 
