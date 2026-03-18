@@ -1,6 +1,6 @@
 httpx
 openpyxl
-pandas
+pandas<3.0
 pandas-gbq
 python-amazon-sp-api
 python-dotenv
