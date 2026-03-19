@@ -9,14 +9,23 @@ from sp_utils.sp_utils import get_last_sunday
 
 
 @rate_limit(max_rate=0.0167, burst_rate=15)
-async def all_orders_report(days=3) -> ApiResponse:
+async def all_orders_report(
+    days: int | None = 3,
+    dataStartTime: datetime | None = None,
+    dataEndTime: datetime | None = None,
+) -> ApiResponse:
+    if days and (dataStartTime or dataEndTime):
+        raise ValueError(
+            "Either `days` or `dataStartTime` / `dataEndTime` must be submitted, can't use both"
+        )
     reportType = ReportType.GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL
-    dataStartTime = datetime.now() - timedelta(days=days)
+    dataStartTime = datetime.now() - timedelta(days=days) if days else dataStartTime
 
     async with get_reports_class() as report:
         return await report.create_report(
             reportType=reportType,
             dataStartTime=dataStartTime,
+            dataEndTime=dataEndTime,
             marketplaceIds=["ATVPDKIKX0DER"],
         )
 
