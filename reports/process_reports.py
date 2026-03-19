@@ -18,7 +18,9 @@ logging.basicConfig(
 
 
 @rate_limit(**SP_API_RATE_LIMITS["get_report"])
-async def _poll_until_done(report_id: str, sleep_time=5) -> dict:
+async def _poll_until_done(
+    report_id: str, time_to_wait: int = 60, sleep_time: int = 5
+) -> dict:
     """
     Check report status until the report is fully resolved - either Done, or failed
     Args:
@@ -29,7 +31,7 @@ async def _poll_until_done(report_id: str, sleep_time=5) -> dict:
         report_status(dict): The dict containing the status of the report,
         document id, report creation time etc
     """
-    max_retries = 60 // sleep_time
+    max_retries = time_to_wait // sleep_time
     async with get_reports_class() as report:
         status_job = await report.get_report(reportId=report_id)
         report_status = status_job.payload
@@ -74,7 +76,9 @@ async def _download_document(report_document_id: str) -> str | dict:
 
 
 async def check_and_download_report(
-    response: ApiResponse | None = None, report_id: str | None = None
+    response: ApiResponse | None = None,
+    report_id: str | None = None,
+    time_to_wait: int = 60,
 ) -> str | dict:
     """
     Checks and downloads the report from a generated report response.
@@ -89,7 +93,9 @@ async def check_and_download_report(
     if all([response is None, report_id is None]) or not report_id:
         raise ValueError("Either a response or a report ID must be provided")
 
-    report_status = await _poll_until_done(report_id)
+    report_status = await _poll_until_done(
+        report_id=report_id, time_to_wait=time_to_wait
+    )
 
     if report_status["processingStatus"] != "DONE":
         print(f"report status: {report_status['processingStatus']}")
